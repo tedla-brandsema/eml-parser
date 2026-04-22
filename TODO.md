@@ -176,6 +176,8 @@ Constraints:
 
 ### 10. Dataset / Benchmark Layer
 
+Status: implemented
+
 Add small, reusable regression datasets and scoring fixtures.
 
 Targets:

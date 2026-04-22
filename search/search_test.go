@@ -164,3 +164,61 @@ func TestUniqueCandidatesDeduplicatesByNormalizedKey(t *testing.T) {
 		t.Fatalf("unexpected canonical key: %q", unique[0].Key)
 	}
 }
+
+func TestRealRangeSamples(t *testing.T) {
+	samples := RealRangeSamples("x", -1, 1, 3, func(x float64) float64 { return x * x })
+	if len(samples) != 3 {
+		t.Fatalf("expected 3 samples, got %d", len(samples))
+	}
+	if samples[0].Vars["x"] != -1 || samples[2].Vars["x"] != 1 {
+		t.Fatalf("unexpected sample coordinates: %+v", samples)
+	}
+	if samples[1].Target != 0 {
+		t.Fatalf("unexpected midpoint target: %v", samples[1].Target)
+	}
+}
+
+func TestComplexGridSamples(t *testing.T) {
+	samples := ComplexGridSamples("z", []float64{0, 1}, []float64{-1, 1}, func(z complex128) complex128 { return z })
+	if len(samples) != 4 {
+		t.Fatalf("expected 4 samples, got %d", len(samples))
+	}
+}
+
+func TestRealBenchmarkFixturesScoreExactly(t *testing.T) {
+	fixtures, err := RealBenchmarkFixtures()
+	if err != nil {
+		t.Fatalf("RealBenchmarkFixtures returned error: %v", err)
+	}
+	for _, fixture := range fixtures {
+		t.Run(fixture.Name, func(t *testing.T) {
+			candidate := NewCandidate(fixture.Expr)
+			mse, err := RealMSE(candidate, eval.Complex128Backend{}, fixture.Samples)
+			if err != nil {
+				t.Fatalf("RealMSE returned error: %v", err)
+			}
+			if mse > 1e-12 {
+				t.Fatalf("expected near-zero mse, got %g", mse)
+			}
+		})
+	}
+}
+
+func TestComplexBenchmarkFixturesScoreExactly(t *testing.T) {
+	fixtures, err := ComplexBenchmarkFixtures()
+	if err != nil {
+		t.Fatalf("ComplexBenchmarkFixtures returned error: %v", err)
+	}
+	for _, fixture := range fixtures {
+		t.Run(fixture.Name, func(t *testing.T) {
+			candidate := NewCandidate(fixture.Expr)
+			mse, err := ComplexMSE(candidate, eval.Complex128Backend{}, fixture.Samples)
+			if err != nil {
+				t.Fatalf("ComplexMSE returned error: %v", err)
+			}
+			if mse > 1e-12 {
+				t.Fatalf("expected near-zero mse, got %g", mse)
+			}
+		})
+	}
+}

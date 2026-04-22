@@ -203,6 +203,7 @@ Current status:
 - raw EML normalization should now reduce obviously redundant expanded forms after concept expansion, without changing the concept dictionary or parser grammar.
 - expansion caching should now avoid repeated recursive work for named concepts while staying internal to the registry layer.
 - search-space preparation should now add bounded raw-tree construction, subtree replacement, mutation helpers, and deduplication by normalized canonical key without coupling back into concept expansion.
+- dataset and benchmark support should now provide reusable sample-set builders and named regression fixtures so future search loops can be compared against stable targets.
 
 ## Defaults and Assumptions
 
