@@ -90,3 +90,77 @@ func TestRealMSEPropagatesEvaluationError(t *testing.T) {
 		t.Fatal("expected evaluation error")
 	}
 }
+
+func TestReplaceSubtree(t *testing.T) {
+	expr := ast.Apply{
+		Left:  ast.Variable{Name: "x"},
+		Right: ast.Variable{Name: "y"},
+	}
+
+	got, err := ReplaceSubtree(expr, 1, ast.One{})
+	if err != nil {
+		t.Fatalf("ReplaceSubtree returned error: %v", err)
+	}
+	if got.String() != "eml(1, y)" {
+		t.Fatalf("unexpected replacement result: %s", got)
+	}
+}
+
+func TestMutateByReplacement(t *testing.T) {
+	expr := ast.Apply{
+		Left:  ast.Variable{Name: "x"},
+		Right: ast.Variable{Name: "y"},
+	}
+	mutations := MutateByReplacement(expr, []ast.Expr{ast.One{}}, Bounds{
+		MaxDepth: 3,
+		MaxNodes: 5,
+	})
+	if len(mutations) != 3 {
+		t.Fatalf("expected 3 unique mutations, got %d", len(mutations))
+	}
+}
+
+func TestWithinBounds(t *testing.T) {
+	expr := ast.Apply{
+		Left: ast.Variable{Name: "x"},
+		Right: ast.Apply{
+			Left:  ast.One{},
+			Right: ast.Variable{Name: "y"},
+		},
+	}
+	if !WithinBounds(expr, Bounds{MaxDepth: 3, MaxNodes: 5}) {
+		t.Fatal("expected expression to satisfy bounds")
+	}
+	if WithinBounds(expr, Bounds{MaxDepth: 2}) {
+		t.Fatal("expected depth bound failure")
+	}
+}
+
+func TestEnumerateBounded(t *testing.T) {
+	exprs := EnumerateBounded(AtomicSeeds("x"), Bounds{
+		MaxDepth: 2,
+		MaxNodes: 3,
+	})
+	if len(exprs) < 3 {
+		t.Fatalf("expected at least seeds plus one composite, got %d", len(exprs))
+	}
+}
+
+func TestUniqueCandidatesDeduplicatesByNormalizedKey(t *testing.T) {
+	registry := concepts.StandardLibrary()
+	idExpr, err := registry.ExpandSymbolic("id")
+	if err != nil {
+		t.Fatalf("ExpandSymbolic returned error: %v", err)
+	}
+
+	unique := UniqueCandidates([]ast.Expr{
+		ast.Variable{Name: "x"},
+		idExpr,
+	})
+	if len(unique) != 1 {
+		t.Fatalf("expected 1 unique candidate, got %d", len(unique))
+	}
+	if unique[0].Key != "x" {
+		t.Fatalf("unexpected canonical key: %q", unique[0].Key)
+	}
+}

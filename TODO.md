@@ -158,6 +158,8 @@ Reason:
 
 ### 9. Search Space Utilities
 
+Status: implemented
+
 Add raw-tree helpers aimed at candidate generation.
 
 Targets:

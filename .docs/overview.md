@@ -202,6 +202,7 @@ Current status:
 - tooling should now focus on introspecting that dictionary: listing concepts, showing definitions, tracing dependencies, and emitting symbolic raw-EML expansions without changing the raw parser.
 - raw EML normalization should now reduce obviously redundant expanded forms after concept expansion, without changing the concept dictionary or parser grammar.
 - expansion caching should now avoid repeated recursive work for named concepts while staying internal to the registry layer.
+- search-space preparation should now add bounded raw-tree construction, subtree replacement, mutation helpers, and deduplication by normalized canonical key without coupling back into concept expansion.
 
 ## Defaults and Assumptions
 
