@@ -1,0 +1,96 @@
+
+state 0
+	$accept: .input $end 
+
+	IDENT  shift 4
+	ONE  shift 3
+	EML  shift 5
+	.  error
+
+	input  goto 1
+	expr  goto 2
+
+state 1
+	$accept:  input.$end 
+
+	$end  accept
+	.  error
+
+
+state 2
+	input:  expr.    (1)
+
+	.  reduce 1 (src line 20)
+
+
+state 3
+	expr:  ONE.    (2)
+
+	.  reduce 2 (src line 27)
+
+
+state 4
+	expr:  IDENT.    (3)
+
+	.  reduce 3 (src line 32)
+
+
+state 5
+	expr:  EML.LPAREN expr COMMA expr RPAREN 
+
+	LPAREN  shift 6
+	.  error
+
+
+state 6
+	expr:  EML LPAREN.expr COMMA expr RPAREN 
+
+	IDENT  shift 4
+	ONE  shift 3
+	EML  shift 5
+	.  error
+
+	expr  goto 7
+
+state 7
+	expr:  EML LPAREN expr.COMMA expr RPAREN 
+
+	COMMA  shift 8
+	.  error
+
+
+state 8
+	expr:  EML LPAREN expr COMMA.expr RPAREN 
+
+	IDENT  shift 4
+	ONE  shift 3
+	EML  shift 5
+	.  error
+
+	expr  goto 9
+
+state 9
+	expr:  EML LPAREN expr COMMA expr.RPAREN 
+
+	RPAREN  shift 10
+	.  error
+
+
+state 10
+	expr:  EML LPAREN expr COMMA expr RPAREN.    (4)
+
+	.  reduce 4 (src line 39)
+
+
+10 terminals, 3 nonterminals
+5 grammar rules, 11/16000 states
+0 shift/reduce, 0 reduce/reduce conflicts reported
+52 working sets used
+memory: parser 3/240000
+8 extra closures
+12 shift entries, 1 exceptions
+4 goto entries
+0 entries saved by goto default
+Optimizer space used: output 10/240000
+10 table entries, 0 zero
+maximum spread: 9, maximum offset: 9

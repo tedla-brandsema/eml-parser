@@ -1,0 +1,368 @@
+package concepts
+
+import (
+	"math"
+	"math/cmplx"
+	"testing"
+
+	"eml-parser/ast"
+	"eml-parser/eval"
+)
+
+func TestStandardLibraryConstantE(t *testing.T) {
+	registry := StandardLibrary()
+
+	expr, err := registry.Expand("e")
+	if err != nil {
+		t.Fatalf("Expand returned error: %v", err)
+	}
+
+	got, err := eval.Evaluate(expr, eval.Complex128Backend{}, nil)
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+	if !complexClose(got, complex(math.E, 0), 1e-12) {
+		t.Fatalf("expected e, got %v", got)
+	}
+}
+
+func TestStandardLibraryDerivedConstants(t *testing.T) {
+	registry := StandardLibrary()
+
+	cases := []struct {
+		name string
+		want complex128
+	}{
+		{name: "one", want: complex(1, 0)},
+		{name: "zero", want: complex(0, 0)},
+		{name: "minus_one", want: complex(-1, 0)},
+		{name: "two", want: complex(2, 0)},
+		{name: "half", want: complex(0.5, 0)},
+		{name: "i", want: complex(0, 1)},
+		{name: "pi", want: complex(math.Pi, 0)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			expr, err := registry.Expand(tc.name)
+			if err != nil {
+				t.Fatalf("Expand returned error: %v", err)
+			}
+			got, err := eval.Evaluate(expr, eval.Complex128Backend{}, nil)
+			if err != nil {
+				t.Fatalf("Evaluate returned error: %v", err)
+			}
+			if !complexClose(got, tc.want, 1e-8) {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestStandardLibraryLogMatchesReference(t *testing.T) {
+	registry := StandardLibrary()
+
+	expr, err := registry.Expand("log", ast.Variable{Name: "x"})
+	if err != nil {
+		t.Fatalf("Expand returned error: %v", err)
+	}
+
+	x := complex(2.5, 0.5)
+	got, err := eval.EvaluateMap(expr, eval.Complex128Backend{}, map[string]complex128{"x": x})
+	if err != nil {
+		t.Fatalf("EvaluateMap returned error: %v", err)
+	}
+	if !complexClose(got, cmplx.Log(x), 1e-10) {
+		t.Fatalf("expected %v, got %v", cmplx.Log(x), got)
+	}
+}
+
+func TestStandardLibraryIdentityMatchesInput(t *testing.T) {
+	registry := StandardLibrary()
+
+	expr, err := registry.Expand("id", ast.Variable{Name: "x"})
+	if err != nil {
+		t.Fatalf("Expand returned error: %v", err)
+	}
+
+	x := complex(1.5, -0.25)
+	got, err := eval.EvaluateMap(expr, eval.Complex128Backend{}, map[string]complex128{"x": x})
+	if err != nil {
+		t.Fatalf("EvaluateMap returned error: %v", err)
+	}
+	if !complexClose(got, x, 1e-10) {
+		t.Fatalf("expected %v, got %v", x, got)
+	}
+}
+
+func TestStandardLibraryAddMulDivPowMatchReference(t *testing.T) {
+	registry := StandardLibrary()
+
+	cases := []struct {
+		name string
+		args []ast.Expr
+		vars map[string]complex128
+		want complex128
+	}{
+		{
+			name: "add",
+			args: []ast.Expr{ast.Variable{Name: "x"}, ast.Variable{Name: "y"}},
+			vars: map[string]complex128{
+				"x": complex(1.25, -0.5),
+				"y": complex(-0.75, 1.25),
+			},
+			want: complex(1.25, -0.5) + complex(-0.75, 1.25),
+		},
+		{
+			name: "mul",
+			args: []ast.Expr{ast.Variable{Name: "x"}, ast.Variable{Name: "y"}},
+			vars: map[string]complex128{
+				"x": complex(2.5, 0.25),
+				"y": complex(0.5, -1.5),
+			},
+			want: complex(2.5, 0.25) * complex(0.5, -1.5),
+		},
+		{
+			name: "div",
+			args: []ast.Expr{ast.Variable{Name: "x"}, ast.Variable{Name: "y"}},
+			vars: map[string]complex128{
+				"x": complex(2.5, 0.25),
+				"y": complex(0.5, -1.5),
+			},
+			want: complex(2.5, 0.25) / complex(0.5, -1.5),
+		},
+		{
+			name: "pow",
+			args: []ast.Expr{ast.Variable{Name: "x"}, ast.Variable{Name: "y"}},
+			vars: map[string]complex128{
+				"x": complex(1.5, 0.25),
+				"y": complex(-0.25, 0.5),
+			},
+			want: cmplx.Exp(complex(-0.25, 0.5) * cmplx.Log(complex(1.5, 0.25))),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			expr, err := registry.Expand(tc.name, tc.args...)
+			if err != nil {
+				t.Fatalf("Expand returned error: %v", err)
+			}
+			got, err := eval.EvaluateMap(expr, eval.Complex128Backend{}, tc.vars)
+			if err != nil {
+				t.Fatalf("EvaluateMap returned error: %v", err)
+			}
+			if !complexClose(got, tc.want, 1e-9) {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestStandardLibraryExpandedArithmeticWorksWithHighPrecisionBackend(t *testing.T) {
+	registry := StandardLibrary()
+
+	expr, err := registry.Expand("mul", ast.Variable{Name: "x"}, ast.Variable{Name: "y"})
+	if err != nil {
+		t.Fatalf("Expand returned error: %v", err)
+	}
+
+	got, err := eval.Evaluate(expr, eval.NewHighPrecisionComplexBackend(eval.Precision{
+		WorkingBits: 256,
+		LogBranch:   eval.PrincipalLogBranch,
+	}), eval.MapBindings[eval.HighPrecisionComplex]{
+		"x": eval.NewHighPrecisionComplex(256, 2.5, 0.25),
+		"y": eval.NewHighPrecisionComplex(256, 0.5, -1.5),
+	})
+	if err != nil {
+		t.Fatalf("Evaluate returned error: %v", err)
+	}
+
+	if !highPrecisionClose(got, complex(2.5, 0.25)*complex(0.5, -1.5), 1e-9) {
+		t.Fatalf("unexpected high-precision result: %s", got.String())
+	}
+}
+
+func TestStandardLibrarySquareAndSqrtMatchReference(t *testing.T) {
+	registry := StandardLibrary()
+
+	squareExpr, err := registry.Expand("square", ast.Variable{Name: "x"})
+	if err != nil {
+		t.Fatalf("Expand(square) returned error: %v", err)
+	}
+	sqrtExpr, err := registry.Expand("sqrt", ast.Variable{Name: "x"})
+	if err != nil {
+		t.Fatalf("Expand(sqrt) returned error: %v", err)
+	}
+
+	x := complex(1.5, 0.25)
+	squareGot, err := eval.EvaluateMap(squareExpr, eval.Complex128Backend{}, map[string]complex128{"x": x})
+	if err != nil {
+		t.Fatalf("EvaluateMap(square) returned error: %v", err)
+	}
+	if !complexClose(squareGot, x*x, 1e-9) {
+		t.Fatalf("expected %v, got %v", x*x, squareGot)
+	}
+
+	y := complex(2.5, 0.5)
+	sqrtGot, err := eval.EvaluateMap(sqrtExpr, eval.Complex128Backend{}, map[string]complex128{"x": y})
+	if err != nil {
+		t.Fatalf("EvaluateMap(sqrt) returned error: %v", err)
+	}
+	if !complexClose(sqrtGot, cmplx.Sqrt(y), 1e-8) {
+		t.Fatalf("expected %v, got %v", cmplx.Sqrt(y), sqrtGot)
+	}
+}
+
+func TestStandardLibraryHyperbolicFunctionsMatchReference(t *testing.T) {
+	registry := StandardLibrary()
+
+	x := complex(0.75, -0.5)
+	cases := []struct {
+		name string
+		want complex128
+	}{
+		{name: "sinh", want: cmplx.Sinh(x)},
+		{name: "cosh", want: cmplx.Cosh(x)},
+		{name: "tanh", want: cmplx.Tanh(x)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			expr, err := registry.Expand(tc.name, ast.Variable{Name: "x"})
+			if err != nil {
+				t.Fatalf("Expand returned error: %v", err)
+			}
+			got, err := eval.EvaluateMap(expr, eval.Complex128Backend{}, map[string]complex128{"x": x})
+			if err != nil {
+				t.Fatalf("EvaluateMap returned error: %v", err)
+			}
+			if !complexClose(got, tc.want, 1e-8) {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestStandardLibraryTrigFunctionsMatchReference(t *testing.T) {
+	registry := StandardLibrary()
+
+	x := complex(0.5, -0.25)
+	cases := []struct {
+		name string
+		want complex128
+	}{
+		{name: "sin", want: cmplx.Sin(x)},
+		{name: "cos", want: cmplx.Cos(x)},
+		{name: "tan", want: cmplx.Tan(x)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			expr, err := registry.Expand(tc.name, ast.Variable{Name: "x"})
+			if err != nil {
+				t.Fatalf("Expand returned error: %v", err)
+			}
+			got, err := eval.EvaluateMap(expr, eval.Complex128Backend{}, map[string]complex128{"x": x})
+			if err != nil {
+				t.Fatalf("EvaluateMap returned error: %v", err)
+			}
+			if !complexClose(got, tc.want, 1e-7) {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestStandardLibraryInverseHyperbolicFunctionsMatchReference(t *testing.T) {
+	registry := StandardLibrary()
+
+	x := complex(0.4, -0.3)
+	cases := []struct {
+		name string
+		want complex128
+	}{
+		{name: "asinh", want: cmplx.Asinh(x)},
+		{name: "acosh", want: cmplx.Acosh(complex(1.8, 0.3))},
+		{name: "atanh", want: cmplx.Atanh(x)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			arg := x
+			if tc.name == "acosh" {
+				arg = complex(1.8, 0.3)
+			}
+			expr, err := registry.Expand(tc.name, ast.Variable{Name: "x"})
+			if err != nil {
+				t.Fatalf("Expand returned error: %v", err)
+			}
+			got, err := eval.EvaluateMap(expr, eval.Complex128Backend{}, map[string]complex128{"x": arg})
+			if err != nil {
+				t.Fatalf("EvaluateMap returned error: %v", err)
+			}
+			if !complexClose(got, tc.want, 1e-7) {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestStandardLibraryInverseTrigFunctionsMatchReference(t *testing.T) {
+	registry := StandardLibrary()
+
+	x := complex(0.35, -0.2)
+	cases := []struct {
+		name string
+		want complex128
+	}{
+		{name: "asin", want: cmplx.Asin(x)},
+		{name: "acos", want: cmplx.Acos(x)},
+		{name: "atan", want: cmplx.Atan(x)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			expr, err := registry.Expand(tc.name, ast.Variable{Name: "x"})
+			if err != nil {
+				t.Fatalf("Expand returned error: %v", err)
+			}
+			got, err := eval.EvaluateMap(expr, eval.Complex128Backend{}, map[string]complex128{"x": x})
+			if err != nil {
+				t.Fatalf("EvaluateMap returned error: %v", err)
+			}
+			if !complexClose(got, tc.want, 1e-7) {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestStandardLibrarySigmoidMatchesReference(t *testing.T) {
+	registry := StandardLibrary()
+
+	expr, err := registry.Expand("sigmoid", ast.Variable{Name: "x"})
+	if err != nil {
+		t.Fatalf("Expand returned error: %v", err)
+	}
+
+	x := complex(0.75, -0.25)
+	got, err := eval.EvaluateMap(expr, eval.Complex128Backend{}, map[string]complex128{"x": x})
+	if err != nil {
+		t.Fatalf("EvaluateMap returned error: %v", err)
+	}
+	want := 1 / (1 + cmplx.Exp(-x))
+	if !complexClose(got, want, 1e-8) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func complexClose(got, want complex128, epsilon float64) bool {
+	return math.Abs(real(got)-real(want)) <= epsilon && math.Abs(imag(got)-imag(want)) <= epsilon
+}
+
+func highPrecisionClose(got eval.HighPrecisionComplex, want complex128, epsilon float64) bool {
+	gotRe, _ := got.Real().Float64()
+	gotIm, _ := got.Imag().Float64()
+	return math.Abs(gotRe-real(want)) <= epsilon && math.Abs(gotIm-imag(want)) <= epsilon
+}

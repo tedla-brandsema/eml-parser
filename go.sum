@@ -1,0 +1,4 @@
+github.com/mshafiee/bigmath v1.2.0 h1:V3Gy1QCbJe4pDD5rjRL2K4owWjprTk93123UG3TbCWU=
+github.com/mshafiee/bigmath v1.2.0/go.mod h1:V5bdx+wiNu7qm4eVe+0yHxjBw1gwW3Vu8WQRKuMsU3Y=
+golang.org/x/tools v0.37.0 h1:DVSRzp7FwePZW356yEAChSdNcQo6Nsp+fex1SUW09lE=
+golang.org/x/tools v0.37.0/go.mod h1:MBN5QPQtLMHVdvsbtarmTNukZDdgwdwlO5qGacAzF0w=
