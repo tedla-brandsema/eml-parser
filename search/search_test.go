@@ -239,7 +239,7 @@ func TestEnumerativeRealSearchFindsExactExpression(t *testing.T) {
 		t.Fatalf("RealBenchmarkFixtureByName returned error: %v", err)
 	}
 
-	results, err := EnumerativeRealSearch(fixture, eval.Complex128Backend{}, SearchOptions{
+	report, err := EnumerativeRealSearch(fixture, eval.Complex128Backend{}, SearchOptions{
 		Bounds: Bounds{
 			MaxDepth: 2,
 			MaxNodes: 3,
@@ -249,13 +249,28 @@ func TestEnumerativeRealSearchFindsExactExpression(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnumerativeRealSearch returned error: %v", err)
 	}
-	if len(results) == 0 {
+	if len(report.Results) == 0 {
 		t.Fatal("expected non-empty search results")
 	}
-	if results[0].Candidate.Key != "eml(x, 1)" {
-		t.Fatalf("expected exp candidate first, got %q", results[0].Candidate.Key)
+	if report.Results[0].Candidate.Key != "eml(x, 1)" {
+		t.Fatalf("expected exp candidate first, got %q", report.Results[0].Candidate.Key)
 	}
-	if results[0].Score > 1e-12 {
-		t.Fatalf("expected near-zero score, got %g", results[0].Score)
+	if report.Results[0].Score > 1e-12 {
+		t.Fatalf("expected near-zero score, got %g", report.Results[0].Score)
+	}
+	if report.Diagnostics.GeneratedCount < report.Diagnostics.UniqueCount {
+		t.Fatalf("expected generated >= unique, got %+v", report.Diagnostics)
+	}
+	if report.Diagnostics.ScoredCount < len(report.Results) {
+		t.Fatalf("expected scored >= returned, got %+v", report.Diagnostics)
+	}
+	if report.Diagnostics.ReturnedCount != len(report.Results) {
+		t.Fatalf("expected returned count to match results, got %+v", report.Diagnostics)
+	}
+	if len(report.Diagnostics.TopCandidateSummaries) != len(report.Results) {
+		t.Fatalf("expected one top summary per returned result, got %+v", report.Diagnostics)
+	}
+	if report.Diagnostics.BestScore > report.Diagnostics.WorstScore {
+		t.Fatalf("expected best <= worst, got %+v", report.Diagnostics)
 	}
 }

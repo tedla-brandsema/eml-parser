@@ -200,6 +200,18 @@ func TestRunSearchReal(t *testing.T) {
 	out := buf.String()
 	for _, expected := range []string{
 		"fixture: exp_real_small",
+		"diagnostics:",
+		"generated:",
+		"unique:",
+		"duplicates:",
+		"normalization_hits:",
+		"evaluation_rejects:",
+		"scored:",
+		"returned:",
+		"best_score:",
+		"worst_score:",
+		"mean_score:",
+		"top_candidates:",
 		"1. score=",
 		"expr=eml(x, 1)",
 	} {

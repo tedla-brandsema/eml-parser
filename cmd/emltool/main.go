@@ -124,7 +124,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		results, err := search.EnumerativeRealSearch(fixture, eval.Complex128Backend{}, search.SearchOptions{
+		report, err := search.EnumerativeRealSearch(fixture, eval.Complex128Backend{}, search.SearchOptions{
 			Bounds: search.Bounds{
 				MaxDepth: 2,
 				MaxNodes: 3,
@@ -135,7 +135,10 @@ func run(args []string) error {
 			return err
 		}
 		fmt.Printf("fixture: %s\n", fixture.Name)
-		for i, result := range results {
+		fmt.Println("diagnostics:")
+		fmt.Println(report.Diagnostics.String())
+		fmt.Println("top_candidates:")
+		for i, result := range report.Results {
 			fmt.Printf("%d. score=%g expr=%s\n", i+1, result.Score, result.Candidate.Normalized)
 		}
 		return nil

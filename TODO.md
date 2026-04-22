@@ -212,6 +212,8 @@ Constraints:
 
 ### 12. Search Diagnostics
 
+Status: implemented
+
 Add observability around candidate generation and scoring.
 
 Targets:
