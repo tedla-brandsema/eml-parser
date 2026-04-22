@@ -7,6 +7,7 @@ import (
 
 	"eml-parser/ast"
 	"eml-parser/eval"
+	"eml-parser/normalize"
 )
 
 func TestStandardLibraryConstantE(t *testing.T) {
@@ -354,6 +355,228 @@ func TestStandardLibrarySigmoidMatchesReference(t *testing.T) {
 	want := 1 / (1 + cmplx.Exp(-x))
 	if !complexClose(got, want, 1e-8) {
 		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func TestStandardLibraryInverseFunctionRoundTrips(t *testing.T) {
+	cases := []struct {
+		name    string
+		outer   func(complex128) complex128
+		inner   func(complex128) complex128
+		input   complex128
+		epsilon float64
+	}{
+		{name: "sin_asin", outer: cmplx.Sin, inner: cmplx.Asin, input: complex(0.3, -0.2), epsilon: 1e-7},
+		{name: "cos_acos", outer: cmplx.Cos, inner: cmplx.Acos, input: complex(0.25, -0.1), epsilon: 1e-7},
+		{name: "tan_atan", outer: cmplx.Tan, inner: cmplx.Atan, input: complex(0.2, -0.15), epsilon: 1e-7},
+		{name: "sinh_asinh", outer: cmplx.Sinh, inner: cmplx.Asinh, input: complex(0.35, -0.25), epsilon: 1e-7},
+		{name: "tanh_atanh", outer: cmplx.Tanh, inner: cmplx.Atanh, input: complex(0.2, -0.15), epsilon: 1e-7},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			want := tc.outer(tc.inner(tc.input))
+			if !complexClose(want, tc.input, tc.epsilon) {
+				t.Fatalf("expected round-trip to recover %v, got %v", tc.input, want)
+			}
+		})
+	}
+}
+
+func TestStandardLibraryConceptRoundTripsMatchReference(t *testing.T) {
+	registry := StandardLibrary()
+
+	cases := []struct {
+		name    string
+		outer   string
+		inner   string
+		input   complex128
+		epsilon float64
+	}{
+		{name: "sin_asin", outer: "sin", inner: "asin", input: complex(0.3, -0.2), epsilon: 1e-7},
+		{name: "cos_acos", outer: "cos", inner: "acos", input: complex(0.25, -0.1), epsilon: 1e-7},
+		{name: "tan_atan", outer: "tan", inner: "atan", input: complex(0.2, -0.15), epsilon: 1e-7},
+		{name: "sinh_asinh", outer: "sinh", inner: "asinh", input: complex(0.35, -0.25), epsilon: 1e-7},
+		{name: "tanh_atanh", outer: "tanh", inner: "atanh", input: complex(0.2, -0.15), epsilon: 1e-7},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			innerExpr, err := registry.Expand(tc.inner, ast.Variable{Name: "x"})
+			if err != nil {
+				t.Fatalf("Expand inner returned error: %v", err)
+			}
+			innerVal, err := eval.EvaluateMap(innerExpr, eval.Complex128Backend{}, map[string]complex128{"x": tc.input})
+			if err != nil {
+				t.Fatalf("EvaluateMap inner returned error: %v", err)
+			}
+
+			outerExpr, err := registry.Expand(tc.outer, ast.Variable{Name: "x"})
+			if err != nil {
+				t.Fatalf("Expand outer returned error: %v", err)
+			}
+			got, err := eval.EvaluateMap(outerExpr, eval.Complex128Backend{}, map[string]complex128{"x": innerVal})
+			if err != nil {
+				t.Fatalf("EvaluateMap outer returned error: %v", err)
+			}
+			if !complexClose(got, tc.input, tc.epsilon) {
+				t.Fatalf("expected %v, got %v", tc.input, got)
+			}
+		})
+	}
+}
+
+func TestStandardLibraryInverseFunctionBranchSensitiveCases(t *testing.T) {
+	registry := StandardLibrary()
+
+	cases := []struct {
+		name    string
+		arg     complex128
+		want    complex128
+		epsilon float64
+	}{
+		{name: "log", arg: complex(-1, 0), want: cmplx.Log(complex(-1, 0)), epsilon: 1e-10},
+		{name: "sqrt", arg: complex(-1, 0), want: cmplx.Sqrt(complex(-1, 0)), epsilon: 1e-8},
+		{name: "acosh", arg: complex(0.5, 0), want: cmplx.Acosh(complex(0.5, 0)), epsilon: 1e-7},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			expr, err := registry.Expand(tc.name, ast.Variable{Name: "x"})
+			if err != nil {
+				t.Fatalf("Expand returned error: %v", err)
+			}
+			got, err := eval.EvaluateMap(expr, eval.Complex128Backend{}, map[string]complex128{"x": tc.arg})
+			if err != nil {
+				t.Fatalf("EvaluateMap returned error: %v", err)
+			}
+			if !complexClose(got, tc.want, tc.epsilon) {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestStandardLibraryRepresentativeHighPrecisionValidation(t *testing.T) {
+	registry := StandardLibrary()
+
+	cases := []struct {
+		name    string
+		arg     complex128
+		want    complex128
+		epsilon float64
+	}{
+		{name: "mul", arg: complex(2.5, 0.25), want: complex(2.5, 0.25) * complex(0.5, -1.5), epsilon: 1e-8},
+		{name: "sigmoid", arg: complex(0.75, -0.25), want: 1 / (1 + cmplx.Exp(-complex(0.75, -0.25))), epsilon: 1e-8},
+		{name: "log", arg: complex(2.5, 0.5), want: cmplx.Log(complex(2.5, 0.5)), epsilon: 1e-8},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				expr ast.Expr
+				err  error
+			)
+			switch tc.name {
+			case "mul":
+				expr, err = registry.Expand("mul", ast.Variable{Name: "x"}, ast.Variable{Name: "y"})
+			default:
+				expr, err = registry.Expand(tc.name, ast.Variable{Name: "x"})
+			}
+			if err != nil {
+				t.Fatalf("Expand returned error: %v", err)
+			}
+			bindings := eval.MapBindings[eval.HighPrecisionComplex]{
+				"x": eval.NewHighPrecisionComplex(256, real(tc.arg), imag(tc.arg)),
+			}
+			if tc.name == "mul" {
+				bindings["y"] = eval.NewHighPrecisionComplex(256, 0.5, -1.5)
+			}
+			got, err := eval.Evaluate(expr, eval.NewHighPrecisionComplexBackend(eval.Precision{
+				WorkingBits: 256,
+				LogBranch:   eval.PrincipalLogBranch,
+			}), bindings)
+			if err != nil {
+				t.Fatalf("Evaluate returned error: %v", err)
+			}
+			if !highPrecisionClose(got, tc.want, tc.epsilon) {
+				t.Fatalf("unexpected high-precision result: %s", got.String())
+			}
+		})
+	}
+}
+
+func TestStandardLibraryNormalizationRegression(t *testing.T) {
+	registry := StandardLibrary()
+
+	cases := []struct {
+		name      string
+		maxNodes  int
+		maxDepth  int
+		argNeeded bool
+	}{
+		{name: "id", maxNodes: 1, maxDepth: 1, argNeeded: true},
+		{name: "sigmoid", maxNodes: 150, maxDepth: 30, argNeeded: true},
+		{name: "atanh", maxNodes: 250, maxDepth: 35, argNeeded: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				expr ast.Expr
+				err  error
+			)
+			if tc.argNeeded {
+				expr, err = registry.Expand(tc.name, ast.Variable{Name: "x"})
+			} else {
+				expr, err = registry.Expand(tc.name)
+			}
+			if err != nil {
+				t.Fatalf("Expand returned error: %v", err)
+			}
+
+			normalized := normalize.Expr(expr)
+			stats := StatsForExpr(normalized)
+			if stats.NodeCount > tc.maxNodes {
+				t.Fatalf("expected normalized node count <= %d, got %d", tc.maxNodes, stats.NodeCount)
+			}
+			if stats.TreeDepth > tc.maxDepth {
+				t.Fatalf("expected normalized depth <= %d, got %d", tc.maxDepth, stats.TreeDepth)
+			}
+		})
+	}
+}
+
+func TestStandardLibraryExpansionSizeChecks(t *testing.T) {
+	registry := StandardLibrary()
+
+	cases := []struct {
+		name        string
+		minNodes    int
+		minDepth    int
+		dependencyN int
+	}{
+		{name: "tan", minNodes: 1000, minDepth: 70, dependencyN: 10},
+		{name: "atanh", minNodes: 150, minDepth: 20, dependencyN: 8},
+		{name: "sigmoid", minNodes: 90, minDepth: 15, dependencyN: 6},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stats, err := registry.Stats(tc.name)
+			if err != nil {
+				t.Fatalf("Stats returned error: %v", err)
+			}
+			if stats.NodeCount < tc.minNodes {
+				t.Fatalf("expected node count >= %d, got %d", tc.minNodes, stats.NodeCount)
+			}
+			if stats.TreeDepth < tc.minDepth {
+				t.Fatalf("expected depth >= %d, got %d", tc.minDepth, stats.TreeDepth)
+			}
+			if stats.TransitiveDepCount < tc.dependencyN {
+				t.Fatalf("expected transitive deps >= %d, got %d", tc.dependencyN, stats.TransitiveDepCount)
+			}
+		})
 	}
 }
 

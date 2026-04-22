@@ -7,6 +7,17 @@ This file records the stable architectural constraints for work in this reposito
 Use `TODO.md` for implementation sequence and backlog.
 Use this file for the rules that should continue to hold as the project grows.
 
+## Backlog Discipline
+
+Use `BACKLOG.md` for unresolved issues, known limitations, semantic mismatches,
+and explicit workarounds.
+
+If implementation requires narrowing validation, accepting a workaround, or
+skipping an intended behavior because of a known limitation, record it in
+`BACKLOG.md`.
+
+Do not silently pass these by.
+
 ## Commit Messages
 
 Always use Conventional Commits for git commit messages.

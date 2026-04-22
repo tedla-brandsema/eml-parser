@@ -121,6 +121,8 @@ Constraints:
 
 ### 7. Standard Library Validation
 
+Status: implemented
+
 Strengthen validation around the growing concept library.
 
 Targets:
