@@ -109,6 +109,14 @@ This makes the concept library inspectable and debuggable while preserving the a
 - parser for raw EML only,
 - dictionary and tooling for mathematical concepts.
 
+The next tooling layer should make concept growth easier to inspect in one
+place:
+
+- combined concept definition plus expanded raw EML view,
+- dependency call-chain reporting,
+- normalized-vs-expanded comparison,
+- node and depth deltas before and after normalization.
+
 Normalization remains a raw-AST concern after expansion.
 
 - expand concepts to raw EML first,

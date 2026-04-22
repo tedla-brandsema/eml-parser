@@ -105,6 +105,16 @@ func run(args []string) error {
 		fmt.Printf("leaves: %d\n", candidate.Stats.LeafCount)
 		fmt.Printf("normalized: %s\n", candidate.Normalized)
 		return nil
+	case "inspect":
+		if len(args) != 2 {
+			return usageError("inspect requires a concept name")
+		}
+		inspection, err := registry.Inspect(args[1])
+		if err != nil {
+			return err
+		}
+		fmt.Println(inspection.String())
+		return nil
 	default:
 		return usageError(fmt.Sprintf("unknown command %q", args[0]))
 	}
@@ -118,7 +128,7 @@ func joinOrNone(values []string) string {
 }
 
 func usageError(prefix string) error {
-	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze> [concept]"
+	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect> [concept]"
 	if prefix == "" {
 		return errors.New(usage)
 	}

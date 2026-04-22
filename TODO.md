@@ -140,6 +140,8 @@ Reason:
 
 ### 8. Concept Library Tooling
 
+Status: implemented
+
 Expand the existing dictionary tooling for better inspection.
 
 Targets:
