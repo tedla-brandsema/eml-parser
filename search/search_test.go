@@ -222,3 +222,40 @@ func TestComplexBenchmarkFixturesScoreExactly(t *testing.T) {
 		})
 	}
 }
+
+func TestRealBenchmarkFixtureByName(t *testing.T) {
+	fixture, err := RealBenchmarkFixtureByName("exp_real_small")
+	if err != nil {
+		t.Fatalf("RealBenchmarkFixtureByName returned error: %v", err)
+	}
+	if fixture.Name != "exp_real_small" {
+		t.Fatalf("unexpected fixture: %+v", fixture)
+	}
+}
+
+func TestEnumerativeRealSearchFindsExactExpression(t *testing.T) {
+	fixture, err := RealBenchmarkFixtureByName("exp_real_small")
+	if err != nil {
+		t.Fatalf("RealBenchmarkFixtureByName returned error: %v", err)
+	}
+
+	results, err := EnumerativeRealSearch(fixture, eval.Complex128Backend{}, SearchOptions{
+		Bounds: Bounds{
+			MaxDepth: 2,
+			MaxNodes: 3,
+		},
+		TopN: 5,
+	})
+	if err != nil {
+		t.Fatalf("EnumerativeRealSearch returned error: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected non-empty search results")
+	}
+	if results[0].Candidate.Key != "eml(x, 1)" {
+		t.Fatalf("expected exp candidate first, got %q", results[0].Candidate.Key)
+	}
+	if results[0].Score > 1e-12 {
+		t.Fatalf("expected near-zero score, got %g", results[0].Score)
+	}
+}

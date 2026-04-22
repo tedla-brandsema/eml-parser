@@ -194,6 +194,8 @@ Reason:
 
 ### 11. First Search Skeleton
 
+Status: implemented
+
 Build the first minimal search workflow on top of the preparation work.
 
 Targets:

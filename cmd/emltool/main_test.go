@@ -178,3 +178,33 @@ func TestRunInspect(t *testing.T) {
 		}
 	}
 }
+
+func TestRunSearchReal(t *testing.T) {
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe failed: %v", err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = stdout }()
+
+	if err := run([]string{"search-real", "exp_real_small"}); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	_ = w.Close()
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy failed: %v", err)
+	}
+	out := buf.String()
+	for _, expected := range []string{
+		"fixture: exp_real_small",
+		"1. score=",
+		"expr=eml(x, 1)",
+	} {
+		if !strings.Contains(out, expected) {
+			t.Fatalf("expected %q in output, got %q", expected, out)
+		}
+	}
+}

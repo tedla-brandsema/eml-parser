@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"eml-parser/concepts"
+	"eml-parser/eval"
 	"eml-parser/normalize"
 	"eml-parser/search"
 )
@@ -115,6 +116,29 @@ func run(args []string) error {
 		}
 		fmt.Println(inspection.String())
 		return nil
+	case "search-real":
+		if len(args) != 2 {
+			return usageError("search-real requires a fixture name")
+		}
+		fixture, err := search.RealBenchmarkFixtureByName(args[1])
+		if err != nil {
+			return err
+		}
+		results, err := search.EnumerativeRealSearch(fixture, eval.Complex128Backend{}, search.SearchOptions{
+			Bounds: search.Bounds{
+				MaxDepth: 2,
+				MaxNodes: 3,
+			},
+			TopN: 5,
+		})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("fixture: %s\n", fixture.Name)
+		for i, result := range results {
+			fmt.Printf("%d. score=%g expr=%s\n", i+1, result.Score, result.Candidate.Normalized)
+		}
+		return nil
 	default:
 		return usageError(fmt.Sprintf("unknown command %q", args[0]))
 	}
@@ -128,7 +152,7 @@ func joinOrNone(values []string) string {
 }
 
 func usageError(prefix string) error {
-	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect> [concept]"
+	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real> [concept]"
 	if prefix == "" {
 		return errors.New(usage)
 	}

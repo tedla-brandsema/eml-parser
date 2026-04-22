@@ -204,6 +204,7 @@ Current status:
 - expansion caching should now avoid repeated recursive work for named concepts while staying internal to the registry layer.
 - search-space preparation should now add bounded raw-tree construction, subtree replacement, mutation helpers, and deduplication by normalized canonical key without coupling back into concept expansion.
 - dataset and benchmark support should now provide reusable sample-set builders and named regression fixtures so future search loops can be compared against stable targets.
+- the first search skeleton should now use bounded enumeration plus existing scoring utilities to rank inspectable candidate lists against named fixtures before any more ambitious search strategy is added.
 
 ## Defaults and Assumptions
 

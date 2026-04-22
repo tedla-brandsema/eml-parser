@@ -16,6 +16,34 @@ type BenchmarkCase[T any] struct {
 	TargetKey string
 }
 
+// RealBenchmarkFixtureByName returns a named real-valued benchmark fixture.
+func RealBenchmarkFixtureByName(name string) (BenchmarkCase[float64], error) {
+	fixtures, err := RealBenchmarkFixtures()
+	if err != nil {
+		return BenchmarkCase[float64]{}, err
+	}
+	for _, fixture := range fixtures {
+		if fixture.Name == name {
+			return fixture, nil
+		}
+	}
+	return BenchmarkCase[float64]{}, fmt.Errorf("unknown real benchmark fixture %q", name)
+}
+
+// ComplexBenchmarkFixtureByName returns a named complex-valued benchmark fixture.
+func ComplexBenchmarkFixtureByName(name string) (BenchmarkCase[complex128], error) {
+	fixtures, err := ComplexBenchmarkFixtures()
+	if err != nil {
+		return BenchmarkCase[complex128]{}, err
+	}
+	for _, fixture := range fixtures {
+		if fixture.Name == name {
+			return fixture, nil
+		}
+	}
+	return BenchmarkCase[complex128]{}, fmt.Errorf("unknown complex benchmark fixture %q", name)
+}
+
 // RealRangeSamples builds real-valued samples from one variable over an evenly
 // spaced range.
 func RealRangeSamples(varName string, start, stop float64, count int, target func(float64) float64) []Sample[float64] {
