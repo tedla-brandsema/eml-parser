@@ -36,6 +36,26 @@ The larger system this parser could support is a code-oriented mathematical pipe
 
 In that model, symbolic regression is closer to constrained program synthesis than to ad hoc formula guessing. Lean or another formal system then becomes the equivalent of a type checker or proof verifier. The raw parser and AST are the foundation for that workflow, but they are not the place where higher-level mathematical concepts live.
 
+## Current Project Priority
+
+The project currently has two possible outcomes:
+
+- it may become an empirical research vehicle for evaluating EML-based symbolic-regression workflows,
+- and, if those experiments are promising, it may later harden into a reusable third-party tool.
+
+The order matters.
+
+For now, the project should be treated primarily as an experimental apparatus for testing whether this EML-centered approach is actually useful. Broader tool hardening, polish, and third-party usability are conditional on positive experimental evidence rather than assumed in advance.
+
+That means current work should prioritize:
+
+- experiment validity,
+- reproducibility,
+- interpretability of search behavior,
+- and credible oracle-controlled evaluation.
+
+General-purpose tool polish is still useful, but it is downstream of proving that the direction is worth pursuing.
+
 ## Immediate Goal
 
 The first concrete target for `eml-parser` is a parser foundation in Go:
