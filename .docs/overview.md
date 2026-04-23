@@ -206,6 +206,7 @@ Current status:
 - dataset and benchmark support should now provide reusable sample-set builders and named regression fixtures so future search loops can be compared against stable targets.
 - the first search skeleton should now use bounded enumeration plus existing scoring utilities to rank inspectable candidate lists against named fixtures before any more ambitious search strategy is added.
 - search diagnostics should now report generated counts, deduplication loss, normalization hits, evaluation rejects, score spread, and top-candidate summaries so search behavior is visible rather than opaque.
+- the formalization bridge should now export normalized raw EML into a deterministic proof-friendly intermediate form with retained concept provenance where available, without coupling proof concerns back into the parser or concept registry.
 
 ## Defaults and Assumptions
 

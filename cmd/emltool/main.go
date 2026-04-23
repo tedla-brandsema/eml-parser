@@ -8,6 +8,7 @@ import (
 
 	"eml-parser/concepts"
 	"eml-parser/eval"
+	"eml-parser/formal"
 	"eml-parser/normalize"
 	"eml-parser/search"
 )
@@ -142,6 +143,20 @@ func run(args []string) error {
 			fmt.Printf("%d. score=%g expr=%s\n", i+1, result.Score, result.Candidate.Normalized)
 		}
 		return nil
+	case "formalize":
+		if len(args) != 2 {
+			return usageError("formalize requires a concept name")
+		}
+		artifact, err := formal.ExportConcept(registry, args[1])
+		if err != nil {
+			return err
+		}
+		payload, err := artifact.JSON()
+		if err != nil {
+			return err
+		}
+		fmt.Println(payload)
+		return nil
 	default:
 		return usageError(fmt.Sprintf("unknown command %q", args[0]))
 	}
@@ -155,7 +170,7 @@ func joinOrNone(values []string) string {
 }
 
 func usageError(prefix string) error {
-	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real> [concept]"
+	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real|formalize> [concept]"
 	if prefix == "" {
 		return errors.New(usage)
 	}

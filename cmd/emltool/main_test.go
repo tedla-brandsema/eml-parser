@@ -220,3 +220,34 @@ func TestRunSearchReal(t *testing.T) {
 		}
 	}
 }
+
+func TestRunFormalize(t *testing.T) {
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe failed: %v", err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = stdout }()
+
+	if err := run([]string{"formalize", "id"}); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	_ = w.Close()
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy failed: %v", err)
+	}
+	out := buf.String()
+	for _, expected := range []string{
+		`"format_version": "eml-formal-v1"`,
+		`"expression": "x"`,
+		`"source": "concept"`,
+		`"name": "id"`,
+	} {
+		if !strings.Contains(out, expected) {
+			t.Fatalf("expected %q in output, got %q", expected, out)
+		}
+	}
+}

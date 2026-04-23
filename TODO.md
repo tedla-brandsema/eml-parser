@@ -230,6 +230,8 @@ Reason:
 
 ### 13. Formalization Bridge
 
+Status: implemented
+
 Prepare normalized raw EML trees for downstream formal workflows.
 
 Targets:
