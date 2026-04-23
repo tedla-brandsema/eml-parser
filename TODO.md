@@ -376,6 +376,8 @@ Reason:
 
 ### 18. Oracle Search Harness
 
+Status: implemented
+
 Build a dedicated experiment runner around the existing search skeleton.
 
 Targets:

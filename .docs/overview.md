@@ -231,6 +231,7 @@ Current status:
 - the experiment filesystem layout should now be fixed under `experiments/` so specs, datasets, results, and suite reports have predictable locations and naming before repeated runs begin producing artifacts.
 - the experiment schema should now be fixed in code and in example JSON specs so future runners load declarative oracle experiments rather than embedding them implicitly in tests or ad hoc scripts.
 - the oracle dataset generator should now be able to materialize deterministic real-valued datasets from concept or raw targets into `experiments/datasets/`, using the current evaluation stack and failing loudly on non-real outputs.
+- the oracle search harness should now be able to load one experiment spec, generate or load its dataset, run the current enumerative real search, and persist a machine-readable result artifact in `experiments/results/`.
 
 ## Defaults and Assumptions
 

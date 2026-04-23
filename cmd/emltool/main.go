@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"eml-parser/concepts"
 	"eml-parser/eval"
+	"eml-parser/experiment"
 	"eml-parser/formal"
 	"eml-parser/normalize"
 	"eml-parser/search"
@@ -157,6 +159,33 @@ func run(args []string) error {
 		}
 		fmt.Println(payload)
 		return nil
+	case "run-experiment":
+		if len(args) != 2 {
+			return usageError("run-experiment requires a spec path")
+		}
+		projectRoot, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("resolve working directory: %w", err)
+		}
+		specPath := args[1]
+		if !filepath.IsAbs(specPath) {
+			specPath = filepath.Join(projectRoot, specPath)
+		}
+		resultPath, artifact, err := experiment.RunSpecPath(projectRoot, specPath)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("experiment: %s\n", artifact.ExperimentID)
+		fmt.Printf("dataset: %s\n", artifact.DatasetPath)
+		fmt.Printf("result: %s\n", resultPath)
+		fmt.Printf("recovery_status: %s\n", artifact.RecoveryStatus)
+		fmt.Println("diagnostics:")
+		fmt.Println(artifact.Diagnostics.String())
+		fmt.Println("top_candidates:")
+		for _, candidate := range artifact.Candidates {
+			fmt.Printf("%d. score=%s expr=%s\n", candidate.Rank, candidate.Score, candidate.NormalizedExpr)
+		}
+		return nil
 	default:
 		return usageError(fmt.Sprintf("unknown command %q", args[0]))
 	}
@@ -170,7 +199,7 @@ func joinOrNone(values []string) string {
 }
 
 func usageError(prefix string) error {
-	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real|formalize> [concept]"
+	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real|formalize|run-experiment> [concept]"
 	if prefix == "" {
 		return errors.New(usage)
 	}
