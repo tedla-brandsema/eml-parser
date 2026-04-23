@@ -227,6 +227,7 @@ Current status:
 - the first search skeleton should now use bounded enumeration plus existing scoring utilities to rank inspectable candidate lists against named fixtures before any more ambitious search strategy is added.
 - search diagnostics should now report generated counts, deduplication loss, normalization hits, evaluation rejects, score spread, and top-candidate summaries so search behavior is visible rather than opaque.
 - the formalization bridge should now export normalized raw EML into a deterministic proof-friendly intermediate form with retained concept provenance where available, without coupling proof concerns back into the parser or concept registry.
+- oracle-controlled experiment methodology should now be fixed in `.docs/experiments.md` before larger empirical result sets are generated, so recovery classes and publishable claims are defined in advance rather than inferred later.
 
 ## Defaults and Assumptions
 

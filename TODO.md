@@ -248,6 +248,8 @@ Constraint:
 
 ### 14. Experiment Methodology Doc
 
+Status: implemented
+
 Create a dedicated experiment-methodology document for oracle-controlled symbolic-regression studies.
 
 Targets:
