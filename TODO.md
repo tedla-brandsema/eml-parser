@@ -528,6 +528,166 @@ Reason:
 
 - if the project is moving toward a paper, limits and caveats should be documented as rigorously as positive findings
 
+## Search Improvement Sequence
+
+### 24. Search Result Hygiene
+
+Add stricter handling for scored candidates so exact-recovery work is not polluted by unusable results.
+
+Targets:
+
+- filter or explicitly quarantine non-finite scores before ranking
+- distinguish finite scored candidates from unusable scored candidates in diagnostics
+- make best / worst / mean score reporting robust when `+Inf` or `NaN` appears
+- preserve JSON-safe score encoding in experiment artifacts
+- add regression tests for finite-vs-nonfinite candidate handling
+
+Reason:
+
+- current search output still surfaces non-finite scores
+- exact-recovery work needs cleaner ranking and cleaner diagnostics before more advanced search logic is added
+
+### 25. Layered Enumeration
+
+Replace single-pass bounded closure enumeration with a depth-aware layered search.
+
+Targets:
+
+- generate candidates by exact depth or exact node layer rather than one full closure bucket
+- record per-layer candidate counts and per-layer best scores
+- stop early when exact recovery is achieved
+- keep the first implementation deterministic and bounded
+- expose layer diagnostics in the existing search report
+
+Reason:
+
+- current search expands everything inside one bound bucket
+- layered search will show where recovery first becomes possible and avoid unnecessary work once the target is already found
+
+### 26. Semantic Pruning
+
+Add pruning based on observed behavior over the oracle dataset, not only on structure.
+
+Targets:
+
+- evaluate candidates on the sample set during search
+- deduplicate or discard candidates whose sampled outputs are identical or effectively identical
+- add configurable tolerance for real-valued semantic dedupe
+- retain structural canonical keys separately from semantic signatures
+- record semantic-pruning counts in diagnostics
+
+Reason:
+
+- structural dedupe alone leaves many behaviorally redundant candidates
+- exact recovery becomes harder when the frontier is crowded with semantically equivalent junk
+
+### 27. Trivial Expression Pruning
+
+Remove low-information candidate families early without pruning away known exact winners.
+
+Targets:
+
+- detect and discard candidates that collapse to constants or near-constants on the full sample set when that makes them obviously unhelpful
+- discard exact duplicate variable or constant families already represented by smaller candidates
+- keep pruning rules conservative and sample-driven
+- document every pruning rule and test it against current exact controls
+
+Reason:
+
+- current failures still rank trivial expressions highly for harder targets
+- those baselines are useful, but they should not dominate the frontier indefinitely
+
+### 28. Beam Search Skeleton
+
+Add a second search mode that can go deeper without full exhaustive expansion.
+
+Targets:
+
+- introduce a deterministic beam search over raw EML candidates
+- seed from the same atomic basis as current enumerative search
+- expand only the top `k` frontier candidates per layer by score
+- keep beam width, max depth, and max nodes explicit in options
+- preserve the existing enumerative search path as a baseline mode
+- compare beam search against enumerative search on the committed oracle suite
+
+Reason:
+
+- exact recovery of current failures likely requires deeper search, but full enumeration will scale poorly
+- beam search is the smallest meaningful next step beyond pure exhaustive bounded enumeration
+
+### 29. Mutation / Refinement Search
+
+Use local refinement around promising candidates instead of always rebuilding from atoms.
+
+Targets:
+
+- add a mutation-driven search pass using the existing subtree replacement helpers
+- mutate top-ranked candidates from earlier layers or earlier search modes
+- support replacement by small seed expressions and previously promising subtrees
+- deduplicate mutated candidates by structural and semantic signatures
+- record mutation-origin diagnostics so recoveries can be traced back to their parent candidates
+
+Reason:
+
+- the repo already has mutation primitives, but they are not part of the actual search loop
+- harder recoveries may require local refinement around near-miss candidates
+
+### 30. Search Mode Integration In Experiments
+
+Make the experiment schema and harness able to compare improved search modes reproducibly.
+
+Targets:
+
+- extend experiment search config to support:
+  - `enumerative_real`
+  - `beam_real`
+  - `enumerative_plus_mutation`
+- keep mode validation strict
+- preserve backward compatibility for existing committed oracle specs
+- record search-mode-specific diagnostics in result artifacts
+- add experiment tests proving that old specs still run unchanged
+
+Reason:
+
+- search improvements only matter if the oracle framework can compare them reproducibly
+
+### 31. Oracle Boundary Re-baselining
+
+Use the improved search modes to move the exact-recovery boundary deliberately.
+
+Targets:
+
+- rerun the committed oracle suite after each major search improvement
+- record which current negative or stretch controls move to:
+  - exact normalized recovery
+  - approximate-only recovery
+  - still no recovery
+- treat `sin` and `sigmoid` as the first named boundary targets
+- add at least one search-regression test proving an improved mode strictly dominates the old mode on a current negative or stretch control
+
+Reason:
+
+- the point of search improvement is not abstract elegance
+- it is to move concrete oracle targets from failure into exact recovery
+
+### 32. Search Improvement Readout
+
+Document the evolving search strategy with the same rigor as the experiment methodology.
+
+Targets:
+
+- add `.docs/search-strategy.md`
+- explain:
+  - current search modes
+  - why each mode exists
+  - what oracle boundary it moved
+  - what it still does not solve
+- tie every claimed improvement to oracle-suite evidence rather than anecdote
+
+Reason:
+
+- once multiple search modes exist, the repo needs a stable explanation of their role and current limits
+
 ## Architectural Rules
 
 - The raw parser stays minimal: `1`, variables, `eml(left, right)`.
