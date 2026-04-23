@@ -1,0 +1,58 @@
+# Experiments
+
+This directory holds the on-disk layout for oracle-controlled symbolic-regression
+experiments.
+
+The layout is intentionally simple and deterministic so experiment runs can be
+reproduced, audited, and summarized without inventing new paths or file naming
+rules each time.
+
+## Layout
+
+- `experiments/specs/`
+  - source-of-truth experiment definitions
+  - committed to version control
+  - one file per experiment spec, typically `<experiment-id>.json`
+- `experiments/datasets/`
+  - generated datasets derived from experiment specs
+  - deterministic artifacts, typically `<experiment-id>.json`
+  - regenerated as needed rather than treated as source-of-truth inputs
+- `experiments/results/`
+  - recorded per-run experiment outputs
+  - deterministic artifacts, typically `<experiment-id>.json`
+  - regenerated as needed from specs and datasets
+- `experiments/reports/`
+  - suite-level summaries and paper-facing aggregation artifacts
+  - deterministic artifacts such as:
+    - `<suite-id>.json`
+    - `<suite-id>.md`
+
+## Version Control Policy
+
+Source-of-truth inputs belong in version control:
+
+- `experiments/specs/`
+- this `README.md`
+
+Generated artifacts are reproducible and ignored by default:
+
+- `experiments/datasets/`
+- `experiments/results/`
+- `experiments/reports/`
+
+If a future summary artifact should be preserved in version control for paper
+drafting or review, that should be an explicit decision rather than the default.
+
+## Naming
+
+Use deterministic naming:
+
+- per-experiment artifacts:
+  - `<experiment-id>.json`
+- per-suite machine-readable summaries:
+  - `<suite-id>.json`
+- per-suite human-readable summaries:
+  - `<suite-id>.md`
+
+The experiment id or suite id should be enough to locate the corresponding
+artifacts across the full directory tree.

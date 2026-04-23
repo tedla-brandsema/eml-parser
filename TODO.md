@@ -285,6 +285,8 @@ Reason:
 
 ### 15. Experiment Directory Layout
 
+Status: implemented
+
 Create a stable on-disk layout for experiment inputs and outputs.
 
 Targets:

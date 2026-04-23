@@ -1,0 +1,6 @@
+datasets/*
+!datasets/.gitkeep
+results/*
+!results/.gitkeep
+reports/*
+!reports/.gitkeep

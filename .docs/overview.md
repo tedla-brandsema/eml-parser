@@ -228,6 +228,7 @@ Current status:
 - search diagnostics should now report generated counts, deduplication loss, normalization hits, evaluation rejects, score spread, and top-candidate summaries so search behavior is visible rather than opaque.
 - the formalization bridge should now export normalized raw EML into a deterministic proof-friendly intermediate form with retained concept provenance where available, without coupling proof concerns back into the parser or concept registry.
 - oracle-controlled experiment methodology should now be fixed in `.docs/experiments.md` before larger empirical result sets are generated, so recovery classes and publishable claims are defined in advance rather than inferred later.
+- the experiment filesystem layout should now be fixed under `experiments/` so specs, datasets, results, and suite reports have predictable locations and naming before repeated runs begin producing artifacts.
 
 ## Defaults and Assumptions
 
