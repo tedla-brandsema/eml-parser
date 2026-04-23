@@ -18,6 +18,7 @@ rules each time.
   - generated datasets derived from experiment specs
   - deterministic artifacts, typically `<experiment-id>.json`
   - regenerated as needed rather than treated as source-of-truth inputs
+  - generated through the schema-driven oracle dataset path, not hand-authored
 - `experiments/results/`
   - recorded per-run experiment outputs
   - deterministic artifacts, typically `<experiment-id>.json`

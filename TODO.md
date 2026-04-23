@@ -349,6 +349,8 @@ Reason:
 
 ### 17. Oracle Dataset Generator
 
+Status: implemented
+
 Build a reusable dataset generator for controlled recovery experiments.
 
 Targets:
