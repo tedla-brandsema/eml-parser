@@ -236,6 +236,7 @@ Current status:
 - experiment result artifacts should now retain enough provenance to be auditable later: dataset metadata, target canonical form, search options, diagnostics, ranked candidates, recovery class, timestamp, and git commit when available.
 - suite reporting should now be able to aggregate explicit result artifacts into one JSON summary and one Markdown summary under `experiments/reports/`, including recovery-class counts, target-family counts, diagnostic ranges, and top recovered expressions.
 - an initial oracle suite should now exist as committed experiment specs covering exact controls, a small nested composite control, and honest current-boundary failures such as additive and larger-library targets.
+- paper-readiness notes should now make explicit what the current suite can support as evidence, what it cannot yet support, and which threats to validity must be disclosed if the project is written up.
 
 ## Defaults and Assumptions
 

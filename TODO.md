@@ -508,6 +508,8 @@ Reason:
 
 ### 23. Paper Readiness Notes
 
+Status: implemented
+
 Document how experiment results map to future empirical writing.
 
 Targets:
