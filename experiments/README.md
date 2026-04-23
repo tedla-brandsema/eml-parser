@@ -14,6 +14,7 @@ rules each time.
   - committed to version control
   - one file per experiment spec, typically `<experiment-id>.json`
   - includes schema-conforming examples and later oracle suite definitions
+  - suite notes may live alongside specs as Markdown when helpful
 - `experiments/datasets/`
   - generated datasets derived from experiment specs
   - deterministic artifacts, typically `<experiment-id>.json`

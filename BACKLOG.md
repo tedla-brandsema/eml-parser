@@ -136,3 +136,32 @@ Long-term follow-up:
 
 - continue expanding validation incrementally,
 - keep recording any narrowed or skipped validation here.
+
+### 5. Initial Oracle Suite Cannot Yet Treat `sin` And `sigmoid` As Exact Controls
+
+Status: open
+
+The initial oracle suite includes `sin` and `sigmoid`, but under the current
+enumerative real search they are only practical as honest current-boundary
+failures rather than exact-recovery controls.
+
+What we did:
+
+- kept `exp` and `log` as exact controls,
+- kept one small nested composite as an exact control,
+- encoded `sin`, `sigmoid`, and a larger additive composite as `no_recovery`
+  expectations in the committed suite.
+
+Why this matters:
+
+- the longer-term experimental ambition is broader than the current search
+  engine can support,
+- and the suite should not imply exact-recovery capability that the present
+  bounded search does not actually have.
+
+Long-term follow-up:
+
+- improve the search strategy, bounds handling, or search-space design until
+  more of the standard library can be moved from negative or stretch controls
+  into exact controls,
+- then revise the oracle suite accordingly.

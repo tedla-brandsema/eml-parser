@@ -1,0 +1,29 @@
+{
+  "id": "oracle_log_exact",
+  "description": "Exact recovery control for log(x) on a small positive real grid.",
+  "target": {
+    "kind": "concept",
+    "concept": "log"
+  },
+  "dataset": {
+    "mode": "real_grid",
+    "variable": "x",
+    "grid": {
+      "start": 0.5,
+      "stop": 2.5,
+      "count": 5
+    }
+  },
+  "search": {
+    "mode": "enumerative_real",
+    "bounds": {
+      "max_depth": 4,
+      "max_nodes": 7
+    },
+    "top_n": 10
+  },
+  "recovery": {
+    "expected_class": "exact_normalized_recovery",
+    "expected_canonical_key": "eml(1, eml(eml(1, x), 1))"
+  }
+}

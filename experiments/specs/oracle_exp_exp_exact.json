@@ -1,0 +1,29 @@
+{
+  "id": "oracle_exp_exp_exact",
+  "description": "Exact nested composite recovery control for exp(exp(x)).",
+  "target": {
+    "kind": "raw",
+    "raw_eml": "eml(eml(x, 1), 1)"
+  },
+  "dataset": {
+    "mode": "real_grid",
+    "variable": "x",
+    "grid": {
+      "start": -1.0,
+      "stop": 0.5,
+      "count": 4
+    }
+  },
+  "search": {
+    "mode": "enumerative_real",
+    "bounds": {
+      "max_depth": 3,
+      "max_nodes": 5
+    },
+    "top_n": 10
+  },
+  "recovery": {
+    "expected_class": "exact_normalized_recovery",
+    "expected_canonical_key": "eml(eml(x, 1), 1)"
+  }
+}

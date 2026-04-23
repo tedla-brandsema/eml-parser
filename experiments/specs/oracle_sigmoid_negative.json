@@ -1,0 +1,28 @@
+{
+  "id": "oracle_sigmoid_negative",
+  "description": "Negative control for sigmoid(x) under current bounded search.",
+  "target": {
+    "kind": "concept",
+    "concept": "sigmoid"
+  },
+  "dataset": {
+    "mode": "real_grid",
+    "variable": "x",
+    "grid": {
+      "start": -2.0,
+      "stop": 2.0,
+      "count": 5
+    }
+  },
+  "search": {
+    "mode": "enumerative_real",
+    "bounds": {
+      "max_depth": 3,
+      "max_nodes": 5
+    },
+    "top_n": 10
+  },
+  "recovery": {
+    "expected_class": "no_recovery"
+  }
+}

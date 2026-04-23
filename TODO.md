@@ -480,6 +480,8 @@ Reason:
 
 ### 22. Initial Oracle Suite
 
+Status: implemented
+
 Create the first paper-oriented oracle experiment suite.
 
 Targets:
