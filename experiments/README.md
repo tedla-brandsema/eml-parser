@@ -29,6 +29,7 @@ rules each time.
   - deterministic artifacts such as:
     - `<suite-id>.json`
     - `<suite-id>.md`
+  - generated from explicit result artifact lists by the suite reporting layer
 
 ## Version Control Policy
 

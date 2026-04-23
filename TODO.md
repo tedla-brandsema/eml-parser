@@ -455,6 +455,8 @@ Reason:
 
 ### 21. Experiment Reporting
 
+Status: implemented
+
 Add lightweight summary reporting for experiment suites.
 
 Targets:

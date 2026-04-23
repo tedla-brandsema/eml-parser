@@ -234,6 +234,7 @@ Current status:
 - the oracle search harness should now be able to load one experiment spec, generate or load its dataset, run the current enumerative real search, and persist a machine-readable result artifact in `experiments/results/`.
 - experiment runs should now be classified deterministically as exact normalized recovery, concept-equivalent recovery, approximate-only recovery, or no recovery according to the declared recovery criteria in each spec.
 - experiment result artifacts should now retain enough provenance to be auditable later: dataset metadata, target canonical form, search options, diagnostics, ranked candidates, recovery class, timestamp, and git commit when available.
+- suite reporting should now be able to aggregate explicit result artifacts into one JSON summary and one Markdown summary under `experiments/reports/`, including recovery-class counts, target-family counts, diagnostic ranges, and top recovered expressions.
 
 ## Defaults and Assumptions
 

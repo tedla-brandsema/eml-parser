@@ -300,3 +300,58 @@ func TestRunExperiment(t *testing.T) {
 		}
 	}
 }
+
+func TestRunReportSuite(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd failed: %v", err)
+	}
+	if err := os.Chdir("/home/ted/projects/go/eml-parser"); err != nil {
+		t.Fatalf("os.Chdir failed: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(wd)
+	}()
+
+	specPath := filepath.Join("experiments", "specs", "example_exp_real_grid.json")
+	resultPath := filepath.Join("experiments", "results", "example_exp_real_grid.json")
+	_ = os.Remove(filepath.Join("experiments", "datasets", "example_exp_real_grid.json"))
+	_ = os.Remove(resultPath)
+	_ = os.Remove(filepath.Join("experiments", "reports", "smoke_suite.json"))
+	_ = os.Remove(filepath.Join("experiments", "reports", "smoke_suite.md"))
+
+	if err := run([]string{"run-experiment", specPath}); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe failed: %v", err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = stdout }()
+
+	if err := run([]string{"report-suite", "smoke_suite", resultPath}); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	_ = w.Close()
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy failed: %v", err)
+	}
+	out := buf.String()
+	for _, expected := range []string{
+		"suite: smoke_suite",
+		"json:",
+		"markdown:",
+		"total_experiments: 1",
+		"success_count: 1",
+		"failure_count: 0",
+	} {
+		if !strings.Contains(out, expected) {
+			t.Fatalf("expected %q in output, got %q", expected, out)
+		}
+	}
+}

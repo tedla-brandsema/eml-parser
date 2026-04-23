@@ -186,6 +186,34 @@ func run(args []string) error {
 			fmt.Printf("%d. score=%s expr=%s\n", candidate.Rank, candidate.Score, candidate.NormalizedExpr)
 		}
 		return nil
+	case "report-suite":
+		if len(args) < 3 {
+			return usageError("report-suite requires a suite id and at least one result path")
+		}
+		projectRoot, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("resolve working directory: %w", err)
+		}
+		suiteID := args[1]
+		resultPaths := make([]string, 0, len(args)-2)
+		for _, arg := range args[2:] {
+			path := arg
+			if !filepath.IsAbs(path) {
+				path = filepath.Join(projectRoot, path)
+			}
+			resultPaths = append(resultPaths, path)
+		}
+		jsonPath, mdPath, summary, err := experiment.WriteSuiteReports(projectRoot, suiteID, resultPaths)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("suite: %s\n", summary.SuiteID)
+		fmt.Printf("json: %s\n", jsonPath)
+		fmt.Printf("markdown: %s\n", mdPath)
+		fmt.Printf("total_experiments: %d\n", summary.TotalExperiments)
+		fmt.Printf("success_count: %d\n", summary.SuccessCount)
+		fmt.Printf("failure_count: %d\n", summary.FailureCount)
+		return nil
 	default:
 		return usageError(fmt.Sprintf("unknown command %q", args[0]))
 	}
@@ -199,7 +227,7 @@ func joinOrNone(values []string) string {
 }
 
 func usageError(prefix string) error {
-	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real|formalize|run-experiment> [concept]"
+	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real|formalize|run-experiment|report-suite> [concept]"
 	if prefix == "" {
 		return errors.New(usage)
 	}
