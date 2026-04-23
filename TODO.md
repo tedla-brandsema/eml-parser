@@ -397,6 +397,8 @@ Reason:
 
 ### 19. Recovery Classification
 
+Status: implemented
+
 Add explicit recovery classification for experiment results.
 
 Targets:

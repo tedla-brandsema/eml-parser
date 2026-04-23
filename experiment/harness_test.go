@@ -60,7 +60,7 @@ func TestRunSpecPathGeneratesDatasetAndResult(t *testing.T) {
 	if artifact.ExperimentID != "exp_real_grid" {
 		t.Fatalf("unexpected artifact: %+v", artifact)
 	}
-	if artifact.RecoveryStatus != recoveryPending {
+	if artifact.RecoveryStatus != RecoveryClassExactNormalized {
 		t.Fatalf("unexpected recovery status: %+v", artifact)
 	}
 	if len(artifact.Candidates) == 0 {
@@ -161,6 +161,9 @@ func TestRunSpecPathLoadsExistingDataset(t *testing.T) {
 	}
 	if artifact.DatasetPath != datasetPath {
 		t.Fatalf("expected harness to use existing dataset path, got %+v", artifact)
+	}
+	if artifact.RecoveryStatus != RecoveryClassExactNormalized {
+		t.Fatalf("unexpected recovery status: %+v", artifact)
 	}
 	if !strings.HasSuffix(resultPath, filepath.Join("experiments", "results", "identity.json")) {
 		t.Fatalf("unexpected result path: %s", resultPath)

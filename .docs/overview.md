@@ -232,6 +232,7 @@ Current status:
 - the experiment schema should now be fixed in code and in example JSON specs so future runners load declarative oracle experiments rather than embedding them implicitly in tests or ad hoc scripts.
 - the oracle dataset generator should now be able to materialize deterministic real-valued datasets from concept or raw targets into `experiments/datasets/`, using the current evaluation stack and failing loudly on non-real outputs.
 - the oracle search harness should now be able to load one experiment spec, generate or load its dataset, run the current enumerative real search, and persist a machine-readable result artifact in `experiments/results/`.
+- experiment runs should now be classified deterministically as exact normalized recovery, concept-equivalent recovery, approximate-only recovery, or no recovery according to the declared recovery criteria in each spec.
 
 ## Defaults and Assumptions
 

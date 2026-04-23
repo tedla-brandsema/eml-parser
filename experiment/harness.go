@@ -58,8 +58,6 @@ type CandidateResult struct {
 	NormalizedExpr string `json:"normalized_expr"`
 }
 
-const recoveryPending = "pending"
-
 // LoadDataset reads a previously generated dataset artifact from disk.
 func LoadDataset(path string) (DatasetArtifact, error) {
 	data, err := os.ReadFile(path)
@@ -105,7 +103,7 @@ func RunSpecPath(projectRoot, specPath string) (string, SearchResultArtifact, er
 		},
 		Diagnostics:    diagnosticsArtifact(report.Diagnostics),
 		Candidates:     candidateResults(report.Results),
-		RecoveryStatus: recoveryPending,
+		RecoveryStatus: ClassifyRecovery(spec, report),
 		GeneratedAtUTC: time.Now().UTC().Format(time.RFC3339),
 	}
 

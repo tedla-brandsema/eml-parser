@@ -291,7 +291,7 @@ func TestRunExperiment(t *testing.T) {
 		"experiment: example_exp_real_grid",
 		"dataset:",
 		"result:",
-		"recovery_status: pending",
+		"recovery_status: exact_normalized_recovery",
 		"diagnostics:",
 		"top_candidates:",
 	} {
