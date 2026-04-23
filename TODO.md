@@ -313,6 +313,8 @@ Reason:
 
 ### 16. Oracle Experiment Schema
 
+Status: implemented
+
 Define a machine-readable experiment schema for oracle-controlled recovery tasks.
 
 Targets:

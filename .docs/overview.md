@@ -229,6 +229,7 @@ Current status:
 - the formalization bridge should now export normalized raw EML into a deterministic proof-friendly intermediate form with retained concept provenance where available, without coupling proof concerns back into the parser or concept registry.
 - oracle-controlled experiment methodology should now be fixed in `.docs/experiments.md` before larger empirical result sets are generated, so recovery classes and publishable claims are defined in advance rather than inferred later.
 - the experiment filesystem layout should now be fixed under `experiments/` so specs, datasets, results, and suite reports have predictable locations and naming before repeated runs begin producing artifacts.
+- the experiment schema should now be fixed in code and in example JSON specs so future runners load declarative oracle experiments rather than embedding them implicitly in tests or ad hoc scripts.
 
 ## Defaults and Assumptions
 

@@ -13,6 +13,7 @@ rules each time.
   - source-of-truth experiment definitions
   - committed to version control
   - one file per experiment spec, typically `<experiment-id>.json`
+  - includes schema-conforming examples and later oracle suite definitions
 - `experiments/datasets/`
   - generated datasets derived from experiment specs
   - deterministic artifacts, typically `<experiment-id>.json`
