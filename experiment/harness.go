@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"eml-parser/eval"
@@ -15,17 +17,19 @@ import (
 // SearchResultArtifact is the machine-readable output of one oracle experiment
 // run over the current enumerative real search path.
 type SearchResultArtifact struct {
-	ExperimentID   string              `json:"experiment_id"`
-	Description    string              `json:"description"`
-	SpecPath       string              `json:"spec_path,omitempty"`
-	DatasetPath    string              `json:"dataset_path,omitempty"`
-	Target         DatasetTarget       `json:"target"`
-	Variable       string              `json:"variable"`
-	Search         SearchExecution     `json:"search"`
-	Diagnostics    DiagnosticsArtifact `json:"diagnostics"`
-	Candidates     []CandidateResult   `json:"candidates"`
-	RecoveryStatus string              `json:"recovery_status"`
-	GeneratedAtUTC string              `json:"generated_at_utc"`
+	ExperimentID       string              `json:"experiment_id"`
+	Description        string              `json:"description"`
+	SpecPath           string              `json:"spec_path,omitempty"`
+	DatasetPath        string              `json:"dataset_path,omitempty"`
+	Target             DatasetTarget       `json:"target"`
+	TargetCanonicalKey string              `json:"target_canonical_key"`
+	Dataset            DatasetMetadata     `json:"dataset"`
+	Search             SearchExecution     `json:"search"`
+	Diagnostics        DiagnosticsArtifact `json:"diagnostics"`
+	Candidates         []CandidateResult   `json:"candidates"`
+	RecoveryStatus     string              `json:"recovery_status"`
+	CodeVersion        CodeVersion         `json:"code_version"`
+	GeneratedAtUTC     string              `json:"generated_at_utc"`
 }
 
 // SearchExecution captures the concrete search configuration used for a run.
@@ -33,6 +37,19 @@ type SearchExecution struct {
 	Mode   string     `json:"mode"`
 	Bounds BoundsSpec `json:"bounds"`
 	TopN   int        `json:"top_n"`
+}
+
+// DatasetMetadata is the dataset-side provenance retained in a search result.
+type DatasetMetadata struct {
+	Variable    string        `json:"variable"`
+	Mode        string        `json:"mode"`
+	Domain      DatasetDomain `json:"domain"`
+	SampleCount int           `json:"sample_count"`
+}
+
+// CodeVersion identifies the code revision that produced a result artifact.
+type CodeVersion struct {
+	GitCommit string `json:"git_commit,omitempty"`
 }
 
 // DiagnosticsArtifact is the JSON-safe diagnostic view of one search run.
@@ -90,12 +107,18 @@ func RunSpecPath(projectRoot, specPath string) (string, SearchResultArtifact, er
 	}
 
 	artifact := SearchResultArtifact{
-		ExperimentID: spec.ID,
-		Description:  spec.Description,
-		SpecPath:     specPath,
-		DatasetPath:  datasetPath,
-		Target:       dataset.Target,
-		Variable:     dataset.Variable,
+		ExperimentID:       spec.ID,
+		Description:        spec.Description,
+		SpecPath:           specPath,
+		DatasetPath:        datasetPath,
+		Target:             dataset.Target,
+		TargetCanonicalKey: dataset.Target.CanonicalKey,
+		Dataset: DatasetMetadata{
+			Variable:    dataset.Variable,
+			Mode:        dataset.Mode,
+			Domain:      cloneDatasetDomain(dataset.Domain),
+			SampleCount: dataset.SampleCount,
+		},
 		Search: SearchExecution{
 			Mode:   spec.Search.Mode,
 			Bounds: spec.Search.Bounds,
@@ -104,6 +127,7 @@ func RunSpecPath(projectRoot, specPath string) (string, SearchResultArtifact, er
 		Diagnostics:    diagnosticsArtifact(report.Diagnostics),
 		Candidates:     candidateResults(report.Results),
 		RecoveryStatus: ClassifyRecovery(spec, report),
+		CodeVersion:    detectCodeVersion(projectRoot),
 		GeneratedAtUTC: time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -169,6 +193,18 @@ func candidateResults(results []search.SearchResult) []CandidateResult {
 	return out
 }
 
+func cloneDatasetDomain(domain DatasetDomain) DatasetDomain {
+	out := DatasetDomain{}
+	if domain.Grid != nil {
+		grid := *domain.Grid
+		out.Grid = &grid
+	}
+	if len(domain.Points) > 0 {
+		out.Points = append([]float64(nil), domain.Points...)
+	}
+	return out
+}
+
 func diagnosticsArtifact(d search.SearchDiagnostics) DiagnosticsArtifact {
 	return DiagnosticsArtifact{
 		GeneratedCount:        d.GeneratedCount,
@@ -212,6 +248,19 @@ func formatScore(v float64) string {
 	default:
 		return fmt.Sprintf("%g", v)
 	}
+}
+
+func detectCodeVersion(projectRoot string) CodeVersion {
+	cmd := exec.Command("git", "-C", projectRoot, "rev-parse", "HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return CodeVersion{}
+	}
+	commit := strings.TrimSpace(string(output))
+	if commit == "" {
+		return CodeVersion{}
+	}
+	return CodeVersion{GitCommit: commit}
 }
 
 func writeResultArtifact(path string, artifact SearchResultArtifact) error {

@@ -424,6 +424,8 @@ Reason:
 
 ### 20. Experiment Result Recording
 
+Status: implemented
+
 Record experiment runs in a stable machine-readable format.
 
 Targets:

@@ -63,6 +63,15 @@ func TestRunSpecPathGeneratesDatasetAndResult(t *testing.T) {
 	if artifact.RecoveryStatus != RecoveryClassExactNormalized {
 		t.Fatalf("unexpected recovery status: %+v", artifact)
 	}
+	if artifact.TargetCanonicalKey != "eml(x, 1)" {
+		t.Fatalf("unexpected target canonical key: %+v", artifact)
+	}
+	if artifact.Dataset.Variable != "x" || artifact.Dataset.SampleCount != 5 {
+		t.Fatalf("unexpected dataset metadata: %+v", artifact.Dataset)
+	}
+	if artifact.CodeVersion.GitCommit != "" && len(artifact.CodeVersion.GitCommit) < 7 {
+		t.Fatalf("unexpected git commit format: %+v", artifact.CodeVersion)
+	}
 	if len(artifact.Candidates) == 0 {
 		t.Fatalf("expected candidates, got %+v", artifact)
 	}
@@ -164,6 +173,12 @@ func TestRunSpecPathLoadsExistingDataset(t *testing.T) {
 	}
 	if artifact.RecoveryStatus != RecoveryClassExactNormalized {
 		t.Fatalf("unexpected recovery status: %+v", artifact)
+	}
+	if artifact.TargetCanonicalKey != "x" {
+		t.Fatalf("unexpected target canonical key: %+v", artifact)
+	}
+	if artifact.Dataset.Mode != DatasetModeExplicitPoints || artifact.Dataset.SampleCount != 3 {
+		t.Fatalf("unexpected dataset metadata: %+v", artifact.Dataset)
 	}
 	if !strings.HasSuffix(resultPath, filepath.Join("experiments", "results", "identity.json")) {
 		t.Fatalf("unexpected result path: %s", resultPath)
