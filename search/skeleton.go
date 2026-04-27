@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"eml-parser/eval"
@@ -27,6 +28,7 @@ type SearchDiagnostics struct {
 	DuplicateCount        int
 	NormalizationHits     int
 	EvaluationRejects     int
+	NonFiniteCount        int
 	ScoredCount           int
 	ReturnedCount         int
 	BestScore             float64
@@ -43,12 +45,13 @@ type SearchReport struct {
 
 func (d SearchDiagnostics) String() string {
 	return fmt.Sprintf(
-		"generated: %d\nunique: %d\nduplicates: %d\nnormalization_hits: %d\nevaluation_rejects: %d\nscored: %d\nreturned: %d\nbest_score: %g\nworst_score: %g\nmean_score: %g",
+		"generated: %d\nunique: %d\nduplicates: %d\nnormalization_hits: %d\nevaluation_rejects: %d\nnon_finite_count: %d\nscored: %d\nreturned: %d\nbest_score: %g\nworst_score: %g\nmean_score: %g",
 		d.GeneratedCount,
 		d.UniqueCount,
 		d.DuplicateCount,
 		d.NormalizationHits,
 		d.EvaluationRejects,
+		d.NonFiniteCount,
 		d.ScoredCount,
 		d.ReturnedCount,
 		d.BestScore,
@@ -81,6 +84,10 @@ func EnumerativeRealSearch(fixture BenchmarkCase[float64], backend eval.Backend[
 		score, err := RealMSE(candidate, backend, fixture.Samples)
 		if err != nil {
 			diagnostics.EvaluationRejects++
+			continue
+		}
+		if !isFiniteScore(score) {
+			diagnostics.NonFiniteCount++
 			continue
 		}
 		results = append(results, SearchResult{
@@ -125,4 +132,8 @@ func EnumerativeRealSearch(fixture BenchmarkCase[float64], backend eval.Backend[
 		Results:     results,
 		Diagnostics: diagnostics,
 	}, nil
+}
+
+func isFiniteScore(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }

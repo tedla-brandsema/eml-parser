@@ -532,6 +532,8 @@ Reason:
 
 ### 24. Search Result Hygiene
 
+Status: implemented
+
 Add stricter handling for scored candidates so exact-recovery work is not polluted by unusable results.
 
 Targets:

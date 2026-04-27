@@ -1,6 +1,7 @@
 package search
 
 import (
+	"math"
 	"testing"
 
 	"eml-parser/ast"
@@ -230,6 +231,40 @@ func TestRealBenchmarkFixtureByName(t *testing.T) {
 	}
 	if fixture.Name != "exp_real_small" {
 		t.Fatalf("unexpected fixture: %+v", fixture)
+	}
+}
+
+func TestEnumerativeRealSearchFiltersNonFiniteScores(t *testing.T) {
+	fixture := BenchmarkCase[float64]{
+		Name:      "non_finite_target",
+		TargetKey: "x",
+		Samples: []Sample[float64]{
+			{Vars: map[string]float64{"x": 1.0}, Target: math.Inf(1)},
+		},
+	}
+
+	report, err := EnumerativeRealSearch(fixture, eval.Complex128Backend{}, SearchOptions{
+		Bounds: Bounds{MaxDepth: 2, MaxNodes: 3},
+		TopN:   5,
+	})
+	if err != nil {
+		t.Fatalf("EnumerativeRealSearch returned error: %v", err)
+	}
+	if report.Diagnostics.NonFiniteCount == 0 {
+		t.Fatal("expected non-finite candidates to be counted")
+	}
+	for _, r := range report.Results {
+		if !isFiniteScore(r.Score) {
+			t.Fatalf("non-finite score %g leaked into results", r.Score)
+		}
+	}
+	if len(report.Results) > 0 {
+		if !isFiniteScore(report.Diagnostics.BestScore) {
+			t.Fatalf("BestScore is non-finite: %g", report.Diagnostics.BestScore)
+		}
+		if !isFiniteScore(report.Diagnostics.MeanScore) {
+			t.Fatalf("MeanScore is non-finite: %g", report.Diagnostics.MeanScore)
+		}
 	}
 }
 

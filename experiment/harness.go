@@ -59,6 +59,7 @@ type DiagnosticsArtifact struct {
 	DuplicateCount        int      `json:"duplicate_count"`
 	NormalizationHits     int      `json:"normalization_hits"`
 	EvaluationRejects     int      `json:"evaluation_rejects"`
+	NonFiniteCount        int      `json:"non_finite_count"`
 	ScoredCount           int      `json:"scored_count"`
 	ReturnedCount         int      `json:"returned_count"`
 	BestScore             string   `json:"best_score"`
@@ -212,6 +213,7 @@ func diagnosticsArtifact(d search.SearchDiagnostics) DiagnosticsArtifact {
 		DuplicateCount:        d.DuplicateCount,
 		NormalizationHits:     d.NormalizationHits,
 		EvaluationRejects:     d.EvaluationRejects,
+		NonFiniteCount:        d.NonFiniteCount,
 		ScoredCount:           d.ScoredCount,
 		ReturnedCount:         d.ReturnedCount,
 		BestScore:             formatScore(d.BestScore),
@@ -223,12 +225,13 @@ func diagnosticsArtifact(d search.SearchDiagnostics) DiagnosticsArtifact {
 
 func (d DiagnosticsArtifact) String() string {
 	return fmt.Sprintf(
-		"generated: %d\nunique: %d\nduplicates: %d\nnormalization_hits: %d\nevaluation_rejects: %d\nscored: %d\nreturned: %d\nbest_score: %s\nworst_score: %s\nmean_score: %s",
+		"generated: %d\nunique: %d\nduplicates: %d\nnormalization_hits: %d\nevaluation_rejects: %d\nnon_finite_count: %d\nscored: %d\nreturned: %d\nbest_score: %s\nworst_score: %s\nmean_score: %s",
 		d.GeneratedCount,
 		d.UniqueCount,
 		d.DuplicateCount,
 		d.NormalizationHits,
 		d.EvaluationRejects,
+		d.NonFiniteCount,
 		d.ScoredCount,
 		d.ReturnedCount,
 		d.BestScore,
