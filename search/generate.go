@@ -57,6 +57,34 @@ func EnumerateBounded(atoms []ast.Expr, bounds Bounds) []ast.Expr {
 	return snapshotValues(unique)
 }
 
+// EnumerateNextLayer generates all unique raw EML expressions of exactly the
+// next depth level by pairing each expression in lastLayer with every expression
+// in allPrev (which must include lastLayer). The returned expressions all have
+// depth = max(depth(lastLayer)) + 1 and are not already present in allPrev.
+func EnumerateNextLayer(lastLayer []ast.Expr, allPrev []ast.Expr, bounds Bounds) []ast.Expr {
+	seen := make(map[string]bool, len(allPrev))
+	for _, e := range allPrev {
+		seen[CanonicalKey(e)] = true
+	}
+
+	var result []ast.Expr
+	for _, a := range lastLayer {
+		for _, b := range allPrev {
+			for _, expr := range []ast.Expr{
+				ast.Apply{Left: clone(a), Right: clone(b)},
+				ast.Apply{Left: clone(b), Right: clone(a)},
+			} {
+				key := CanonicalKey(expr)
+				if WithinBounds(expr, bounds) && !seen[key] {
+					result = append(result, expr)
+					seen[key] = true
+				}
+			}
+		}
+	}
+	return result
+}
+
 func snapshotValues(m map[string]ast.Expr) []ast.Expr {
 	out := make([]ast.Expr, 0, len(m))
 	for _, expr := range m {

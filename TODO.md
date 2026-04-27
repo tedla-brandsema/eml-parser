@@ -551,6 +551,8 @@ Reason:
 
 ### 25. Layered Enumeration
 
+Status: implemented
+
 Replace single-pass bounded closure enumeration with a depth-aware layered search.
 
 Targets:

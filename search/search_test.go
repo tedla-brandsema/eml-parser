@@ -234,6 +234,88 @@ func TestRealBenchmarkFixtureByName(t *testing.T) {
 	}
 }
 
+func TestLayeredRealSearchFindsExactExpressionWithLayerDiagnostics(t *testing.T) {
+	fixture, err := RealBenchmarkFixtureByName("exp_real_small")
+	if err != nil {
+		t.Fatalf("RealBenchmarkFixtureByName returned error: %v", err)
+	}
+
+	report, err := LayeredRealSearch(fixture, eval.Complex128Backend{}, SearchOptions{
+		Bounds: Bounds{MaxDepth: 5, MaxNodes: 10},
+		TopN:   5,
+	})
+	if err != nil {
+		t.Fatalf("LayeredRealSearch returned error: %v", err)
+	}
+	if len(report.Results) == 0 {
+		t.Fatal("expected non-empty results")
+	}
+	if report.Results[0].Candidate.Key != "eml(x, 1)" {
+		t.Fatalf("expected exp candidate first, got %q", report.Results[0].Candidate.Key)
+	}
+	if report.Results[0].Score > 1e-12 {
+		t.Fatalf("expected near-zero score, got %g", report.Results[0].Score)
+	}
+	if report.Diagnostics.BestScore > 1e-12 {
+		t.Fatalf("expected near-zero BestScore, got %g", report.Diagnostics.BestScore)
+	}
+	// exp is at depth 2, so early stopping should fire after layer 2.
+	if len(report.Diagnostics.Layers) != 2 {
+		t.Fatalf("expected exactly 2 layers (early stop at depth 2), got %d", len(report.Diagnostics.Layers))
+	}
+	for i, layer := range report.Diagnostics.Layers {
+		if layer.Depth != i+1 {
+			t.Fatalf("layer %d: expected Depth=%d, got %d", i, i+1, layer.Depth)
+		}
+		if layer.CandidateCount < 0 {
+			t.Fatalf("layer %d: negative CandidateCount %d", i, layer.CandidateCount)
+		}
+	}
+	if report.Diagnostics.GeneratedCount < report.Diagnostics.UniqueCount {
+		t.Fatalf("expected generated >= unique, got %+v", report.Diagnostics)
+	}
+	if report.Diagnostics.ScoredCount < len(report.Results) {
+		t.Fatalf("expected scored >= returned, got %+v", report.Diagnostics)
+	}
+}
+
+func TestLayeredRealSearchStopsBeforeMaxDepth(t *testing.T) {
+	fixture, err := RealBenchmarkFixtureByName("exp_real_small")
+	if err != nil {
+		t.Fatalf("RealBenchmarkFixtureByName returned error: %v", err)
+	}
+
+	report, err := LayeredRealSearch(fixture, eval.Complex128Backend{}, SearchOptions{
+		Bounds: Bounds{MaxDepth: 10, MaxNodes: 20},
+		TopN:   5,
+	})
+	if err != nil {
+		t.Fatalf("LayeredRealSearch returned error: %v", err)
+	}
+	if len(report.Diagnostics.Layers) >= 10 {
+		t.Fatalf("expected early stop before MaxDepth=10, got %d layers", len(report.Diagnostics.Layers))
+	}
+}
+
+func TestLayeredRealSearchEmptyNextLayerTerminates(t *testing.T) {
+	fixture, err := RealBenchmarkFixtureByName("exp_real_small")
+	if err != nil {
+		t.Fatalf("RealBenchmarkFixtureByName returned error: %v", err)
+	}
+
+	// MaxDepth=1, MaxNodes=1 means only atoms fit; no depth-2 expression is within bounds.
+	report, err := LayeredRealSearch(fixture, eval.Complex128Backend{}, SearchOptions{
+		Bounds: Bounds{MaxDepth: 1, MaxNodes: 1},
+		TopN:   5,
+	})
+	if err != nil {
+		t.Fatalf("LayeredRealSearch returned error: %v", err)
+	}
+	if len(report.Diagnostics.Layers) != 1 {
+		t.Fatalf("expected exactly 1 layer when bounds allow only atoms, got %d", len(report.Diagnostics.Layers))
+	}
+}
+
 func TestEnumerativeRealSearchFiltersNonFiniteScores(t *testing.T) {
 	fixture := BenchmarkCase[float64]{
 		Name:      "non_finite_target",
