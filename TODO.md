@@ -779,6 +779,8 @@ Reason:
 
 ### 37. Paired And Grouped Dataset Generator
 
+Status: implemented
+
 Generate datasets tied to equivalence families rather than only one originating tree.
 
 Targets:

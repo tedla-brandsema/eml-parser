@@ -57,6 +57,10 @@ The directory may also contain richer `.family.json` equivalence-family corpora.
 Those are generated for later paired/grouped and snippet-level tasks. The
 current `family_match` loader still targets the simpler anchor-artifact files.
 
+The next dataset layer now lives under `artifacts/equivalence/paired/`. Those
+files preserve grouped anchor/member structure across multiple domains and are
+intended for later ML tasks beyond the current `family_match` baseline.
+
 ## Models
 
 The first model family mirrors the useful simplicity of `quotient-collapse`:

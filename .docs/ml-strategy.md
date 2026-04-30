@@ -155,6 +155,8 @@ At the current stage, the Go side now emits:
 
 - anchor-style family artifacts for the first `family_match` ML task,
 - and richer v2 equivalence-family artifacts for later paired/grouped and snippet-oriented dataset generation.
+- grouped paired-equivalence datasets under `artifacts/equivalence/paired/`, derived from curated family artifacts across multiple deterministic sampling domains.
 
 The Python `ml/` path still consumes the simpler anchor artifacts until the
-later dataset-generator items migrate it to the richer family-level corpora.
+later ML items migrate it first to grouped paired-equivalence datasets and then
+to richer snippet-level corpora.

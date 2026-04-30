@@ -133,6 +133,21 @@ The current item-34/35 ML `family_match` path still reads the simpler anchor
 artifacts. The richer family-level corpus is an additive artifact family for
 later items rather than an in-place replacement.
 
+The equivalence-family dataset layer now adds:
+
+- `artifacts/equivalence/paired/`
+  - grouped equivalence datasets derived from item-36 family artifacts
+  - each file preserves:
+    - family identity,
+    - multiple sampling domains,
+    - shared sampled point sets,
+    - ordered anchor/member descriptors,
+    - relation labels
+
+These grouped datasets are the intended bridge from symbolic equivalence
+families to later ML tasks that need paired or grouped examples rather than
+only one anchor tree per file.
+
 ## Read / Write Direction
 
 The intended data flow is:
