@@ -31,7 +31,8 @@ artifacts/snippets/*
 # Python/ML local state
 ml/.venv/
 ml/venv/
-ml/__pycache__/
+ml/**/__pycache__/
+ml/**/*.pyc
 ml/.pytest_cache/
 ml/.mypy_cache/
 ml/.ipynb_checkpoints/
