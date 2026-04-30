@@ -26,6 +26,7 @@ type RankedFullMatchPolicy = base.RankedFullMatchPolicy
 type ThresholdRetentionPolicy = base.ThresholdRetentionPolicy
 type CoverageRetentionPolicy = base.CoverageRetentionPolicy
 type PartialCoverageOptions = base.PartialCoverageOptions
+type TraceWindowDiagnostics = base.TraceWindowDiagnostics
 
 const (
 	RetentionContinue      = base.RetentionContinue
@@ -84,4 +85,8 @@ func RealBenchmarkFixtures() ([]BenchmarkCase[float64], error) {
 
 func ComplexBenchmarkFixtures() ([]BenchmarkCase[complex128], error) {
 	return base.ComplexBenchmarkFixtures()
+}
+
+func ScoreAlignedTraceWindows(target, candidate [][2]float64, options PartialCoverageOptions) (ScoreResult, TraceWindowDiagnostics, bool) {
+	return base.ScoreAlignedTraceWindows(target, candidate, options)
 }

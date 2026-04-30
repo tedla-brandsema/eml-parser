@@ -1,6 +1,7 @@
 package maze
 
 import (
+	"fmt"
 	"testing"
 
 	"eml-parser/ast"
@@ -414,6 +415,111 @@ func TestMatchSnippetAnchorsThresholdRejects(t *testing.T) {
 	}
 }
 
+func TestMatchSnippetAnchorsWindowedPromotesEmbeddedSnippet(t *testing.T) {
+	artifact, err := family.GenerateSnippetDataset(
+		family.CuratedSnippetTargets()[0],
+		concepts.StandardLibrary(),
+		[]family.SamplingDomain{
+			{
+				DomainID: "default",
+				Sampling: family.SamplingSpec{
+					Variable:    "x",
+					Start:       0.05,
+					Stop:        0.25,
+					PointCount:  4,
+					SampleCount: 1,
+					Seed:        0,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateSnippetDataset returned error: %v", err)
+	}
+
+	target, snippetID, err := embeddedSnippetTarget(artifact)
+	if err != nil {
+		t.Fatalf("embeddedSnippetTarget returned error: %v", err)
+	}
+
+	report, err := MatchSnippetAnchors(target, []family.SnippetDatasetArtifact{artifact}, SpawnOptions{
+		TopK:      1,
+		MaxScore:  0.2,
+		MatchMode: SpawnMatchWindowed,
+		Coverage: common.PartialCoverageOptions{
+			MinWindowSize:  4,
+			CoverageWeight: 0.25,
+		},
+	})
+	if err != nil {
+		t.Fatalf("MatchSnippetAnchors returned error: %v", err)
+	}
+	if len(report.Anchors) != 1 {
+		t.Fatalf("expected one promoted windowed anchor, got %d", len(report.Anchors))
+	}
+	if report.Matches[0].SnippetID != snippetID {
+		t.Fatalf("expected embedded snippet %q first, got %q", snippetID, report.Matches[0].SnippetID)
+	}
+	if report.Matches[0].WindowStart != 1 || report.Matches[0].WindowEnd != 5 {
+		t.Fatalf("expected embedded window [1,5), got [%d,%d)", report.Matches[0].WindowStart, report.Matches[0].WindowEnd)
+	}
+	if report.Matches[0].LocalError > 1e-12 {
+		t.Fatalf("expected near-zero local error, got %g", report.Matches[0].LocalError)
+	}
+	if report.Diagnostics.WindowsEvaluated == 0 {
+		t.Fatal("expected window evaluations to be recorded")
+	}
+}
+
+func TestMatchSnippetAnchorsWindowedRejectsWeakMatches(t *testing.T) {
+	artifact, err := family.GenerateSnippetDataset(
+		family.CuratedSnippetTargets()[0],
+		concepts.StandardLibrary(),
+		[]family.SamplingDomain{
+			{
+				DomainID: "default",
+				Sampling: family.SamplingSpec{
+					Variable:    "x",
+					Start:       0.05,
+					Stop:        0.25,
+					PointCount:  4,
+					SampleCount: 1,
+					Seed:        0,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateSnippetDataset returned error: %v", err)
+	}
+
+	target, _, err := embeddedSnippetTarget(artifact)
+	if err != nil {
+		t.Fatalf("embeddedSnippetTarget returned error: %v", err)
+	}
+	for i := range target.Values {
+		target.Values[i].Target = 999
+	}
+	report, err := MatchSnippetAnchors(target, []family.SnippetDatasetArtifact{artifact}, SpawnOptions{
+		TopK:      1,
+		MaxScore:  1e-6,
+		MatchMode: SpawnMatchWindowed,
+		Coverage: common.PartialCoverageOptions{
+			MinWindowSize:  4,
+			CoverageWeight: 0.25,
+		},
+	})
+	if err != nil {
+		t.Fatalf("MatchSnippetAnchors returned error: %v", err)
+	}
+	if len(report.Anchors) != 0 {
+		t.Fatalf("expected no promoted windowed anchors, got %d", len(report.Anchors))
+	}
+	if report.Diagnostics.ThresholdRejects == 0 {
+		t.Fatal("expected threshold rejects")
+	}
+}
+
 func TestMazeRealSearchFromSpawnedSnippets(t *testing.T) {
 	artifact, err := family.GenerateSnippetDataset(
 		family.CuratedSnippetTargets()[0],
@@ -467,6 +573,90 @@ func TestMazeRealSearchFromSpawnedSnippets(t *testing.T) {
 	}
 	if mazeReport.BestCandidates[0].Provenance == nil {
 		t.Fatal("expected snippet provenance on maze result")
+	}
+}
+
+func TestMazeRealSearchFromSpawnedSnippetsWindowed(t *testing.T) {
+	artifact, err := family.GenerateSnippetDataset(
+		family.CuratedSnippetTargets()[0],
+		concepts.StandardLibrary(),
+		[]family.SamplingDomain{
+			{
+				DomainID: "default",
+				Sampling: family.SamplingSpec{
+					Variable:    "x",
+					Start:       0.05,
+					Stop:        0.25,
+					PointCount:  4,
+					SampleCount: 1,
+					Seed:        0,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateSnippetDataset returned error: %v", err)
+	}
+
+	target, snippetID, err := embeddedSnippetTarget(artifact)
+	if err != nil {
+		t.Fatalf("embeddedSnippetTarget returned error: %v", err)
+	}
+
+	_, strictSpawn, err := MazeRealSearchFromSpawnedSnippets(
+		target,
+		eval.Complex128Backend{},
+		[]family.SnippetDatasetArtifact{artifact},
+		SpawnOptions{
+			TopK:      1,
+			MaxScore:  1e-12,
+			MatchMode: SpawnMatchWholeTrace,
+		},
+		MazeOptions{
+			Bounds:          common.Bounds{MaxDepth: 5, MaxNodes: 9},
+			TopN:            5,
+			AcceptThreshold: 10.0,
+			RetainThreshold: 10.0,
+		},
+	)
+	if err == nil {
+		t.Fatal("expected strict whole-trace spawn to fail on embedded larger target")
+	}
+	if len(strictSpawn.Anchors) != 0 {
+		t.Fatalf("expected no strict spawned anchors, got %d", len(strictSpawn.Anchors))
+	}
+
+	mazeReport, spawnReport, err := MazeRealSearchFromSpawnedSnippets(
+		target,
+		eval.Complex128Backend{},
+		[]family.SnippetDatasetArtifact{artifact},
+		SpawnOptions{
+			TopK:      1,
+			MaxScore:  0.2,
+			MatchMode: SpawnMatchWindowed,
+			Coverage: common.PartialCoverageOptions{
+				MinWindowSize:  4,
+				CoverageWeight: 0.25,
+			},
+		},
+		MazeOptions{
+			Bounds:          common.Bounds{MaxDepth: 5, MaxNodes: 9},
+			TopN:            5,
+			AcceptThreshold: 10.0,
+			RetainThreshold: 10.0,
+		},
+	)
+	if err != nil {
+		t.Fatalf("MazeRealSearchFromSpawnedSnippets returned error: %v", err)
+	}
+	if len(spawnReport.Anchors) != 1 {
+		t.Fatalf("expected one windowed spawned anchor, got %d", len(spawnReport.Anchors))
+	}
+	if spawnReport.Matches[0].SnippetID != snippetID {
+		t.Fatalf("expected snippet %q first, got %q", snippetID, spawnReport.Matches[0].SnippetID)
+	}
+	if len(mazeReport.BestCandidates) == 0 {
+		t.Fatal("expected maze candidates from windowed spawned anchors")
 	}
 }
 
@@ -563,4 +753,37 @@ func TestMazeRealSearchFromSnippetArtifactPartialCoverage(t *testing.T) {
 	if report.BestCandidates[0].ScoreDetails.CoveredCount < 3 {
 		t.Fatalf("expected meaningful coverage, got %+v", report.BestCandidates[0].ScoreDetails)
 	}
+}
+
+func embeddedSnippetTarget(artifact family.SnippetDatasetArtifact) (common.StaticTarget[float64], string, error) {
+	if len(artifact.Snippets) == 0 {
+		return common.StaticTarget[float64]{}, "", fmt.Errorf("no snippets")
+	}
+	target, err := SearchTargetFromSnippetTrace(artifact, artifact.Snippets[0].SnippetID, "default", "")
+	if err != nil {
+		return common.StaticTarget[float64]{}, "", err
+	}
+	snippetPoints := normalizedTargetTrace(target.Samples(), "x")
+	if len(snippetPoints) == 0 {
+		return common.StaticTarget[float64]{}, "", fmt.Errorf("empty snippet target")
+	}
+
+	samples := make([]common.Sample[float64], 0, len(snippetPoints)+2)
+	firstX := snippetPoints[0][0]
+	lastX := snippetPoints[len(snippetPoints)-1][0]
+	samples = append(samples, common.Sample[float64]{
+		Vars:   map[string]float64{"x": firstX - 0.05},
+		Target: 999,
+	})
+	for _, point := range snippetPoints {
+		samples = append(samples, common.Sample[float64]{
+			Vars:   map[string]float64{"x": point[0]},
+			Target: point[1],
+		})
+	}
+	samples = append(samples, common.Sample[float64]{
+		Vars:   map[string]float64{"x": lastX + 0.05},
+		Target: 999,
+	})
+	return common.NewSearchTarget([]string{"x"}, samples), artifact.Snippets[0].SnippetID, nil
 }

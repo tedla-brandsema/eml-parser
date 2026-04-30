@@ -40,17 +40,32 @@ type SnippetMatch struct {
 	DomainID       string           `json:"domain_id"`
 	SampleSetID    string           `json:"sample_set_id"`
 	Score          float64          `json:"score"`
+	WindowStart    int              `json:"window_start,omitempty"`
+	WindowEnd      int              `json:"window_end,omitempty"`
+	CoveredCount   int              `json:"covered_count,omitempty"`
+	CoverageRatio  float64          `json:"coverage_ratio,omitempty"`
+	LocalError     float64          `json:"local_error,omitempty"`
 	Provenance     AnchorProvenance `json:"provenance"`
 }
 
+type SpawnMatchMode string
+
+const (
+	SpawnMatchWholeTrace SpawnMatchMode = "whole_trace"
+	SpawnMatchWindowed   SpawnMatchMode = "windowed"
+)
+
 type SpawnOptions struct {
-	TopK     int
-	MaxScore float64
+	TopK      int
+	MaxScore  float64
+	MatchMode SpawnMatchMode
+	Coverage  common.PartialCoverageOptions
 }
 
 type SpawnDiagnostics struct {
 	ArtifactsExamined     int
 	SnippetTracesCompared int
+	WindowsEvaluated      int
 	AnchorsPromoted       int
 	ThresholdRejects      int
 	ShapeRejects          int
@@ -143,6 +158,9 @@ func MatchSnippetAnchors(target common.SearchTarget[float64], artifacts []family
 	if options.MaxScore == 0 {
 		options.MaxScore = 1e-6
 	}
+	if options.MatchMode == "" {
+		options.MatchMode = SpawnMatchWholeTrace
+	}
 	variables := target.VariableNames()
 	if len(variables) != 1 {
 		return SpawnReport{}, fmt.Errorf("snippet matching requires exactly one target variable, got %d", len(variables))
@@ -166,9 +184,10 @@ func MatchSnippetAnchors(target common.SearchTarget[float64], artifacts []family
 					continue
 				}
 				report.Diagnostics.SnippetTracesCompared++
-				score, ok := traceMSE(targetTrace, sortPoints(sampleSet.Points))
+				score, scoreDiag, ok := matchSnippetTrace(targetTrace, sortPoints(sampleSet.Points), options)
+				report.Diagnostics.WindowsEvaluated += scoreDiag.WindowsEvaluated
+				report.Diagnostics.ShapeRejects += scoreDiag.ShapeRejects
 				if !ok {
-					report.Diagnostics.ShapeRejects++
 					continue
 				}
 				match := SnippetMatch{
@@ -179,7 +198,12 @@ func MatchSnippetAnchors(target common.SearchTarget[float64], artifacts []family
 					CanonicalKey:   snippet.CanonicalKey,
 					DomainID:       sampleSet.DomainID,
 					SampleSetID:    sampleSet.SampleSetID,
-					Score:          score,
+					Score:          score.Primary,
+					WindowStart:    score.WindowStart,
+					WindowEnd:      score.WindowEnd,
+					CoveredCount:   score.CoveredCount,
+					CoverageRatio:  score.CoverageRatio,
+					LocalError:     score.LocalError,
 					Provenance: AnchorProvenance{
 						SourceKind:     AnchorSourceSnippet,
 						TargetID:       artifact.TargetID,
@@ -192,8 +216,8 @@ func MatchSnippetAnchors(target common.SearchTarget[float64], artifacts []family
 					},
 				}
 				report.Matches = append(report.Matches, match)
-				if score < report.Diagnostics.BestScore {
-					report.Diagnostics.BestScore = score
+				if score.Primary < report.Diagnostics.BestScore {
+					report.Diagnostics.BestScore = score.Primary
 				}
 			}
 		}
@@ -202,6 +226,9 @@ func MatchSnippetAnchors(target common.SearchTarget[float64], artifacts []family
 	sort.Slice(report.Matches, func(i, j int) bool {
 		if report.Matches[i].Score == report.Matches[j].Score {
 			if report.Matches[i].CanonicalKey == report.Matches[j].CanonicalKey {
+				if report.Matches[i].SnippetID == report.Matches[j].SnippetID {
+					return report.Matches[i].WindowStart < report.Matches[j].WindowStart
+				}
 				return report.Matches[i].SnippetID < report.Matches[j].SnippetID
 			}
 			return report.Matches[i].CanonicalKey < report.Matches[j].CanonicalKey
@@ -377,6 +404,30 @@ func traceMSE(target, candidate [][2]float64) (float64, bool) {
 		total += diff * diff
 	}
 	return total / float64(len(target)), true
+}
+
+func matchSnippetTrace(target, candidate [][2]float64, options SpawnOptions) (common.ScoreResult, common.TraceWindowDiagnostics, bool) {
+	switch options.MatchMode {
+	case SpawnMatchWholeTrace:
+		score, ok := traceMSE(target, candidate)
+		if !ok {
+			return common.ScoreResult{}, common.TraceWindowDiagnostics{ShapeRejects: 1}, false
+		}
+		return common.ScoreResult{
+			Primary:          score,
+			Finite:           true,
+			WindowStart:      0,
+			WindowEnd:        len(target),
+			CoveredCount:     len(target),
+			CoverageRatio:    1,
+			LocalError:       score,
+			RawCoverageScore: 1,
+		}, common.TraceWindowDiagnostics{WindowsEvaluated: 1}, true
+	case SpawnMatchWindowed:
+		return common.ScoreAlignedTraceWindows(target, candidate, options.Coverage)
+	default:
+		return common.ScoreResult{}, common.TraceWindowDiagnostics{}, false
+	}
 }
 
 func findSnippetByID(artifacts []family.SnippetDatasetArtifact, targetID, snippetID string) (family.SnippetDatasetArtifact, family.SnippetDescriptor, error) {

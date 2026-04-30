@@ -30,12 +30,14 @@ retention-policy choices, not the permanent identity of maze search.
 Maze can now also be seeded from curated snippet artifacts as an explicit
 anchor source.
 
-Automatic data-to-snippet spawning is now available in a strict first form:
-- whole snippet traces only
-- deterministic ranking
-- package-level APIs only
+Automatic data-to-snippet spawning is now available in two package-level forms:
+- strict whole-trace matching for snippet-scale targets
+- contiguous windowed matching for larger targets
+- deterministic ranking in both modes
 
-Windowed or partial-coverage matching is still deferred.
+Windowed spawning reuses the same fit-plus-coverage objective as maze's
+partial-coverage scorer, so local-law seeding and local-law retention stay
+semantically aligned.
 
 Maze now also has a coverage-aware scoring path:
 - best fixed-size windows over ordered real samples

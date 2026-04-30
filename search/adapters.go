@@ -2,6 +2,7 @@ package search
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"eml-parser/eval"
@@ -99,18 +100,18 @@ type PartialCoverageOptions struct {
 	CoverageWeight float64
 }
 
+type TraceWindowDiagnostics struct {
+	WindowsEvaluated int
+	ShapeRejects     int
+}
+
 type RealPartialCoverageScorer struct {
 	Options PartialCoverageOptions
 }
 
 func (s RealPartialCoverageScorer) ScoreCandidate(candidate Candidate, backend eval.Backend[complex128], target SearchTarget[float64]) (ScoreResult, error) {
 	opts := s.Options
-	if opts.MinWindowSize <= 0 {
-		opts.MinWindowSize = 3
-	}
-	if opts.CoverageWeight == 0 {
-		opts.CoverageWeight = 0.25
-	}
+	opts = normalizePartialCoverageOptions(opts)
 	variables := target.VariableNames()
 	if len(variables) != 1 {
 		return ScoreResult{}, fmt.Errorf("partial coverage scorer requires exactly one variable, got %d", len(variables))
@@ -143,21 +144,8 @@ func (s RealPartialCoverageScorer) ScoreCandidate(candidate Candidate, backend e
 	for start := 0; start < n; start++ {
 		maxEnd := min(n, start+opts.MaxWindowSize)
 		for end := start + opts.MinWindowSize; end <= maxEnd; end++ {
-			covered := end - start
 			localError := windowMSE(preds[start:end], targets[start:end])
-			coverageRatio := float64(covered) / float64(n)
-			rawCoverage := coverageRatio
-			primary := localError + opts.CoverageWeight*(1.0-coverageRatio)
-			current := ScoreResult{
-				Primary:          primary,
-				Finite:           isFiniteScore(primary),
-				WindowStart:      start,
-				WindowEnd:        end,
-				CoveredCount:     covered,
-				CoverageRatio:    coverageRatio,
-				LocalError:       localError,
-				RawCoverageScore: rawCoverage,
-			}
+			current := coverageScoreResult(start, end, n, localError, opts.CoverageWeight)
 			if !current.Finite {
 				continue
 			}
@@ -171,6 +159,49 @@ func (s RealPartialCoverageScorer) ScoreCandidate(candidate Candidate, backend e
 		return ScoreResult{Finite: false}, nil
 	}
 	return best, nil
+}
+
+// ScoreAlignedTraceWindows scores a candidate trace against contiguous windows
+// of a larger target trace using the same fit-plus-coverage objective as the
+// real partial-coverage scorer. Windows must align exactly on x coordinates.
+func ScoreAlignedTraceWindows(target, candidate [][2]float64, options PartialCoverageOptions) (ScoreResult, TraceWindowDiagnostics, bool) {
+	opts := normalizePartialCoverageOptions(options)
+	diag := TraceWindowDiagnostics{}
+	if len(candidate) == 0 || len(target) < len(candidate) {
+		return ScoreResult{}, diag, false
+	}
+	if len(candidate) < opts.MinWindowSize {
+		return ScoreResult{}, diag, false
+	}
+	if opts.MaxWindowSize > 0 && len(candidate) > opts.MaxWindowSize {
+		return ScoreResult{}, diag, false
+	}
+
+	best := ScoreResult{}
+	bestInitialized := false
+	windowSize := len(candidate)
+	for start := 0; start+windowSize <= len(target); start++ {
+		end := start + windowSize
+		diag.WindowsEvaluated++
+		window := target[start:end]
+		localError, ok := alignedTraceMSE(window, candidate)
+		if !ok {
+			diag.ShapeRejects++
+			continue
+		}
+		current := coverageScoreResult(start, end, len(target), localError, opts.CoverageWeight)
+		if !current.Finite {
+			continue
+		}
+		if !bestInitialized || scoreResultLess(current, best) {
+			best = current
+			bestInitialized = true
+		}
+	}
+	if !bestInitialized {
+		return ScoreResult{}, diag, false
+	}
+	return best, diag, true
 }
 
 type RetentionDecision string
@@ -289,6 +320,21 @@ func windowMSE(preds, targets []float64) float64 {
 	return total / float64(len(preds))
 }
 
+func alignedTraceMSE(target, candidate [][2]float64) (float64, bool) {
+	if len(target) == 0 || len(target) != len(candidate) {
+		return 0, false
+	}
+	var total float64
+	for i := range target {
+		if math.Abs(target[i][0]-candidate[i][0]) > 1e-9 {
+			return 0, false
+		}
+		diff := target[i][1] - candidate[i][1]
+		total += diff * diff
+	}
+	return total / float64(len(target)), true
+}
+
 func scoreResultLess(a, b ScoreResult) bool {
 	if a.Primary == b.Primary {
 		if a.CoveredCount == b.CoveredCount {
@@ -314,4 +360,33 @@ func fullCoverageRatio(count int) float64 {
 		return 0
 	}
 	return 1
+}
+
+func normalizePartialCoverageOptions(opts PartialCoverageOptions) PartialCoverageOptions {
+	if opts.MinWindowSize <= 0 {
+		opts.MinWindowSize = 3
+	}
+	if opts.CoverageWeight == 0 {
+		opts.CoverageWeight = 0.25
+	}
+	return opts
+}
+
+func coverageScoreResult(start, end, total int, localError float64, coverageWeight float64) ScoreResult {
+	covered := end - start
+	coverageRatio := 0.0
+	if total > 0 {
+		coverageRatio = float64(covered) / float64(total)
+	}
+	primary := localError + coverageWeight*(1.0-coverageRatio)
+	return ScoreResult{
+		Primary:          primary,
+		Finite:           isFiniteScore(primary),
+		WindowStart:      start,
+		WindowEnd:        end,
+		CoveredCount:     covered,
+		CoverageRatio:    coverageRatio,
+		LocalError:       localError,
+		RawCoverageScore: coverageRatio,
+	}
 }

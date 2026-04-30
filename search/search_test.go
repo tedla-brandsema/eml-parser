@@ -180,6 +180,38 @@ func TestRealPartialCoverageScorerPrefersLargerUsefulWindow(t *testing.T) {
 	}
 }
 
+func TestScoreAlignedTraceWindowsFindsEmbeddedWindow(t *testing.T) {
+	target := [][2]float64{
+		{0.0, 100},
+		{1.0, 0},
+		{2.0, 1},
+		{3.0, 2},
+		{4.0, 100},
+	}
+	candidate := [][2]float64{
+		{1.0, 0},
+		{2.0, 1},
+		{3.0, 2},
+	}
+
+	got, diag, ok := ScoreAlignedTraceWindows(target, candidate, PartialCoverageOptions{
+		MinWindowSize:  3,
+		CoverageWeight: 0.25,
+	})
+	if !ok {
+		t.Fatal("expected embedded window match")
+	}
+	if diag.WindowsEvaluated != 3 {
+		t.Fatalf("expected 3 windows evaluated, got %d", diag.WindowsEvaluated)
+	}
+	if got.WindowStart != 1 || got.WindowEnd != 4 {
+		t.Fatalf("expected best window [1,4), got [%d,%d)", got.WindowStart, got.WindowEnd)
+	}
+	if got.CoveredCount != 3 || got.LocalError > 1e-12 {
+		t.Fatalf("unexpected trace window score: %+v", got)
+	}
+}
+
 func TestCoverageRetentionPolicyDecisions(t *testing.T) {
 	policy := CoverageRetentionPolicy{
 		AcceptThreshold: 1.0,
