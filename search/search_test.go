@@ -149,6 +149,71 @@ func TestThresholdRetentionPolicyDecisions(t *testing.T) {
 	}
 }
 
+func TestRealPartialCoverageScorerPrefersLargerUsefulWindow(t *testing.T) {
+	target := NewSearchTarget([]string{"x"}, []Sample[float64]{
+		{Vars: map[string]float64{"x": 0}, Target: 0},
+		{Vars: map[string]float64{"x": 1}, Target: 1},
+		{Vars: map[string]float64{"x": 2}, Target: 2},
+		{Vars: map[string]float64{"x": 3}, Target: 100},
+		{Vars: map[string]float64{"x": 4}, Target: 100},
+	})
+	candidate := NewCandidate(ast.Variable{Name: "x"})
+	scorer := RealPartialCoverageScorer{
+		Options: PartialCoverageOptions{
+			MinWindowSize:  3,
+			CoverageWeight: 0.25,
+		},
+	}
+
+	got, err := scorer.ScoreCandidate(candidate, eval.Complex128Backend{}, target)
+	if err != nil {
+		t.Fatalf("ScoreCandidate returned error: %v", err)
+	}
+	if got.CoveredCount != 3 {
+		t.Fatalf("expected covered count 3, got %d", got.CoveredCount)
+	}
+	if got.WindowStart != 0 || got.WindowEnd != 3 {
+		t.Fatalf("expected best window [0,3), got [%d,%d)", got.WindowStart, got.WindowEnd)
+	}
+	if got.CoverageRatio <= 0 || got.LocalError > 1e-12 {
+		t.Fatalf("unexpected coverage result: %+v", got)
+	}
+}
+
+func TestCoverageRetentionPolicyDecisions(t *testing.T) {
+	policy := CoverageRetentionPolicy{
+		AcceptThreshold: 1.0,
+		RetainThreshold: 2.0,
+		MinImprovement:  0.1,
+		MinCoveredCount: 3,
+	}
+	parent := &ScoreResult{Primary: 1.5, Finite: true, CoveredCount: 3}
+
+	accepted := policy.Decide(RetentionContext{
+		Parent:  parent,
+		Current: ScoreResult{Primary: 0.5, Finite: true, CoveredCount: 3},
+	})
+	if accepted.Decision != RetentionContinue {
+		t.Fatalf("expected continue decision, got %+v", accepted)
+	}
+
+	retained := policy.Decide(RetentionContext{
+		Parent:  parent,
+		Current: ScoreResult{Primary: 1.6, Finite: true, CoveredCount: 3},
+	})
+	if retained.Decision != RetentionRetainPartial {
+		t.Fatalf("expected retain decision, got %+v", retained)
+	}
+
+	pruned := policy.Decide(RetentionContext{
+		Parent:  parent,
+		Current: ScoreResult{Primary: 0.2, Finite: true, CoveredCount: 2},
+	})
+	if pruned.Decision != RetentionPrune || pruned.Reason != "coverage_too_small" {
+		t.Fatalf("expected coverage prune, got %+v", pruned)
+	}
+}
+
 func TestReplaceSubtree(t *testing.T) {
 	expr := ast.Apply{
 		Left:  ast.Variable{Name: "x"},

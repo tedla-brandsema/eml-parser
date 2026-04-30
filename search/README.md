@@ -22,3 +22,6 @@ Search families should own traversal and candidate generation, not repository
 identity. Scoring, target interpretation, and retain/prune semantics should be
 provided through shared adapters so full-match, partial-match, and ML-guided
 routes can evolve in parallel.
+
+Shared adapters now cover both full-match scoring and first-pass
+partial-coverage scoring.

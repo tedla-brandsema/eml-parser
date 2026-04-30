@@ -1,6 +1,11 @@
 package search
 
-import "eml-parser/eval"
+import (
+	"fmt"
+	"sort"
+
+	"eml-parser/eval"
+)
 
 // SearchTarget is the evidence surface a scorer evaluates against.
 // Different search routes may use different target implementations while
@@ -36,8 +41,14 @@ func (t StaticTarget[T]) VariableNames() []string {
 // target. Extra fields can be added later for coverage-aware or ML-guided
 // search without changing algorithm identities.
 type ScoreResult struct {
-	Primary float64
-	Finite  bool
+	Primary          float64
+	Finite           bool
+	WindowStart      int
+	WindowEnd        int
+	CoveredCount     int
+	CoverageRatio    float64
+	LocalError       float64
+	RawCoverageScore float64
 }
 
 type Scorer[T any] interface {
@@ -52,8 +63,14 @@ func (RealMSEScorer) ScoreCandidate(candidate Candidate, backend eval.Backend[co
 		return ScoreResult{}, err
 	}
 	return ScoreResult{
-		Primary: score,
-		Finite:  isFiniteScore(score),
+		Primary:          score,
+		Finite:           isFiniteScore(score),
+		WindowStart:      0,
+		WindowEnd:        len(target.Samples()),
+		CoveredCount:     len(target.Samples()),
+		CoverageRatio:    fullCoverageRatio(len(target.Samples())),
+		LocalError:       score,
+		RawCoverageScore: fullCoverageRatio(len(target.Samples())),
 	}, nil
 }
 
@@ -65,9 +82,95 @@ func (ComplexMSEScorer) ScoreCandidate(candidate Candidate, backend eval.Backend
 		return ScoreResult{}, err
 	}
 	return ScoreResult{
-		Primary: score,
-		Finite:  isFiniteScore(score),
+		Primary:          score,
+		Finite:           isFiniteScore(score),
+		WindowStart:      0,
+		WindowEnd:        len(target.Samples()),
+		CoveredCount:     len(target.Samples()),
+		CoverageRatio:    fullCoverageRatio(len(target.Samples())),
+		LocalError:       score,
+		RawCoverageScore: fullCoverageRatio(len(target.Samples())),
 	}, nil
+}
+
+type PartialCoverageOptions struct {
+	MinWindowSize  int
+	MaxWindowSize  int
+	CoverageWeight float64
+}
+
+type RealPartialCoverageScorer struct {
+	Options PartialCoverageOptions
+}
+
+func (s RealPartialCoverageScorer) ScoreCandidate(candidate Candidate, backend eval.Backend[complex128], target SearchTarget[float64]) (ScoreResult, error) {
+	opts := s.Options
+	if opts.MinWindowSize <= 0 {
+		opts.MinWindowSize = 3
+	}
+	if opts.CoverageWeight == 0 {
+		opts.CoverageWeight = 0.25
+	}
+	variables := target.VariableNames()
+	if len(variables) != 1 {
+		return ScoreResult{}, fmt.Errorf("partial coverage scorer requires exactly one variable, got %d", len(variables))
+	}
+	samples := sortedRealSamples(target.Samples(), variables[0])
+	n := len(samples)
+	if n < opts.MinWindowSize {
+		return ScoreResult{}, fmt.Errorf("partial coverage scorer requires at least %d samples, got %d", opts.MinWindowSize, n)
+	}
+	if opts.MaxWindowSize <= 0 || opts.MaxWindowSize > n {
+		opts.MaxWindowSize = n
+	}
+
+	preds := make([]float64, 0, n)
+	targets := make([]float64, 0, n)
+	for _, sample := range samples {
+		vars := map[string]complex128{
+			variables[0]: complex(sample.Vars[variables[0]], 0),
+		}
+		got, err := eval.EvaluateMap(candidate.Normalized, backend, vars)
+		if err != nil {
+			return ScoreResult{}, err
+		}
+		preds = append(preds, real(got))
+		targets = append(targets, sample.Target)
+	}
+
+	best := ScoreResult{Primary: 0, Finite: false}
+	bestInitialized := false
+	for start := 0; start < n; start++ {
+		maxEnd := min(n, start+opts.MaxWindowSize)
+		for end := start + opts.MinWindowSize; end <= maxEnd; end++ {
+			covered := end - start
+			localError := windowMSE(preds[start:end], targets[start:end])
+			coverageRatio := float64(covered) / float64(n)
+			rawCoverage := coverageRatio
+			primary := localError + opts.CoverageWeight*(1.0-coverageRatio)
+			current := ScoreResult{
+				Primary:          primary,
+				Finite:           isFiniteScore(primary),
+				WindowStart:      start,
+				WindowEnd:        end,
+				CoveredCount:     covered,
+				CoverageRatio:    coverageRatio,
+				LocalError:       localError,
+				RawCoverageScore: rawCoverage,
+			}
+			if !current.Finite {
+				continue
+			}
+			if !bestInitialized || scoreResultLess(current, best) {
+				best = current
+				bestInitialized = true
+			}
+		}
+	}
+	if !bestInitialized {
+		return ScoreResult{Finite: false}, nil
+	}
+	return best, nil
 }
 
 type RetentionDecision string
@@ -131,4 +234,84 @@ func (p ThresholdRetentionPolicy) Decide(ctx RetentionContext) RetentionOutcome 
 	default:
 		return RetentionOutcome{Decision: RetentionPrune, Reason: "score_above_retain_threshold"}
 	}
+}
+
+type CoverageRetentionPolicy struct {
+	AcceptThreshold float64
+	RetainThreshold float64
+	MinImprovement  float64
+	MinCoveredCount int
+}
+
+func (p CoverageRetentionPolicy) Decide(ctx RetentionContext) RetentionOutcome {
+	if !ctx.Current.Finite {
+		return RetentionOutcome{Decision: RetentionPrune, Reason: "non_finite"}
+	}
+	if p.MinCoveredCount > 0 && ctx.Current.CoveredCount < p.MinCoveredCount {
+		return RetentionOutcome{Decision: RetentionPrune, Reason: "coverage_too_small"}
+	}
+	improvement := 0.0
+	if ctx.Parent != nil {
+		improvement = ctx.Parent.Primary - ctx.Current.Primary
+	}
+	switch {
+	case ctx.Current.Primary <= p.AcceptThreshold && improvement >= p.MinImprovement:
+		return RetentionOutcome{Decision: RetentionContinue, Reason: "accepted_with_coverage"}
+	case ctx.Current.Primary <= p.RetainThreshold:
+		if improvement < p.MinImprovement {
+			return RetentionOutcome{Decision: RetentionRetainPartial, Reason: "stalled_with_coverage"}
+		}
+		return RetentionOutcome{Decision: RetentionRetainPartial, Reason: "retained_partial_coverage"}
+	default:
+		return RetentionOutcome{Decision: RetentionPrune, Reason: "score_above_retain_threshold"}
+	}
+}
+
+func sortedRealSamples(samples []Sample[float64], variable string) []Sample[float64] {
+	out := append([]Sample[float64](nil), samples...)
+	sort.Slice(out, func(i, j int) bool {
+		ix := out[i].Vars[variable]
+		jx := out[j].Vars[variable]
+		if ix == jx {
+			return out[i].Target < out[j].Target
+		}
+		return ix < jx
+	})
+	return out
+}
+
+func windowMSE(preds, targets []float64) float64 {
+	var total float64
+	for i := range preds {
+		diff := preds[i] - targets[i]
+		total += diff * diff
+	}
+	return total / float64(len(preds))
+}
+
+func scoreResultLess(a, b ScoreResult) bool {
+	if a.Primary == b.Primary {
+		if a.CoveredCount == b.CoveredCount {
+			if a.LocalError == b.LocalError {
+				return a.WindowStart < b.WindowStart
+			}
+			return a.LocalError < b.LocalError
+		}
+		return a.CoveredCount > b.CoveredCount
+	}
+	return a.Primary < b.Primary
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func fullCoverageRatio(count int) float64 {
+	if count <= 0 {
+		return 0
+	}
+	return 1
 }

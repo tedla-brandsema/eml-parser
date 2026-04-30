@@ -44,15 +44,17 @@ type ExpansionStep struct {
 }
 
 type GrowthThread struct {
-	AnchorName  string
-	Provenance  *AnchorProvenance
-	Current     common.Candidate
-	Score       float64
-	ParentScore float64
-	Frontiers   []Frontier
-	History     []ExpansionStep
-	Status      ThreadStatus
-	StopReason  string
+	AnchorName    string
+	Provenance    *AnchorProvenance
+	Current       common.Candidate
+	Score         float64
+	ScoreDetails  common.ScoreResult
+	ParentScore   float64
+	ParentDetails common.ScoreResult
+	Frontiers     []Frontier
+	History       []ExpansionStep
+	Status        ThreadStatus
+	StopReason    string
 }
 
 type PartialResult struct {
@@ -60,6 +62,7 @@ type PartialResult struct {
 	Provenance    *AnchorProvenance
 	Candidate     common.Candidate
 	Score         float64
+	ScoreDetails  common.ScoreResult
 	Reason        string
 	FrontierCount int
 	History       []ExpansionStep
@@ -91,11 +94,12 @@ type MazeDiagnostics struct {
 }
 
 type CandidateScore struct {
-	Candidate  common.Candidate
-	Score      float64
-	AnchorName string
-	Provenance *AnchorProvenance
-	History    []ExpansionStep
+	Candidate    common.Candidate
+	Score        float64
+	ScoreDetails common.ScoreResult
+	AnchorName   string
+	Provenance   *AnchorProvenance
+	History      []ExpansionStep
 }
 
 type MazeReport struct {
@@ -160,13 +164,15 @@ func MazeRealSearchWithPolicies(
 		}
 		threadFrontiers := openFrontiers(candidate.Original)
 		thread := GrowthThread{
-			AnchorName:  anchor.Name,
-			Provenance:  cloneAnchorProvenance(anchor.Provenance),
-			Current:     candidate,
-			Score:       scored.Primary,
-			ParentScore: scored.Primary,
-			Frontiers:   threadFrontiers,
-			Status:      ThreadStatusActive,
+			AnchorName:    anchor.Name,
+			Provenance:    cloneAnchorProvenance(anchor.Provenance),
+			Current:       candidate,
+			Score:         scored.Primary,
+			ScoreDetails:  scored,
+			ParentScore:   scored.Primary,
+			ParentDetails: scored,
+			Frontiers:     threadFrontiers,
+			Status:        ThreadStatusActive,
 		}
 		stack = append(stack, thread)
 		seen[candidate.Key] = true
@@ -177,10 +183,11 @@ func MazeRealSearchWithPolicies(
 			report.Diagnostics.BestScore = scored.Primary
 		}
 		report.BestCandidates = append(report.BestCandidates, CandidateScore{
-			Candidate:  candidate,
-			Score:      scored.Primary,
-			AnchorName: anchor.Name,
-			Provenance: cloneAnchorProvenance(anchor.Provenance),
+			Candidate:    candidate,
+			Score:        scored.Primary,
+			ScoreDetails: scored,
+			AnchorName:   anchor.Name,
+			Provenance:   cloneAnchorProvenance(anchor.Provenance),
 		})
 	}
 
@@ -199,8 +206,8 @@ func MazeRealSearchWithPolicies(
 		}
 
 		if len(children) == 0 {
-			currentScore := common.ScoreResult{Primary: thread.Score, Finite: true}
-			parentScore := &common.ScoreResult{Primary: thread.ParentScore, Finite: true}
+			currentScore := thread.ScoreDetails
+			parentScore := &thread.ParentDetails
 			outcome := retention.Decide(common.RetentionContext{Parent: parentScore, Current: currentScore})
 			if outcome.Decision != common.RetentionPrune && thread.Status != ThreadStatusRetainedPartial {
 				report.PartialResults = append(report.PartialResults, PartialResult{
@@ -208,6 +215,7 @@ func MazeRealSearchWithPolicies(
 					Provenance:    cloneAnchorProvenance(thread.Provenance),
 					Candidate:     thread.Current,
 					Score:         thread.Score,
+					ScoreDetails:  thread.ScoreDetails,
 					Reason:        "dead_end",
 					FrontierCount: len(thread.Frontiers),
 					History:       append([]ExpansionStep(nil), thread.History...),
@@ -231,11 +239,12 @@ func MazeRealSearchWithPolicies(
 
 		for _, child := range children {
 			report.BestCandidates = append(report.BestCandidates, CandidateScore{
-				Candidate:  child.Current,
-				Score:      child.Score,
-				AnchorName: child.AnchorName,
-				Provenance: cloneAnchorProvenance(child.Provenance),
-				History:    append([]ExpansionStep(nil), child.History...),
+				Candidate:    child.Current,
+				Score:        child.Score,
+				ScoreDetails: child.ScoreDetails,
+				AnchorName:   child.AnchorName,
+				Provenance:   cloneAnchorProvenance(child.Provenance),
+				History:      append([]ExpansionStep(nil), child.History...),
 			})
 			report.Diagnostics.MaxDepthReached = max(report.Diagnostics.MaxDepthReached, child.Current.Stats.TreeDepth)
 			report.Diagnostics.MaxFrontierCountSeen = max(report.Diagnostics.MaxFrontierCountSeen, len(child.Frontiers))
@@ -322,9 +331,8 @@ func expandThread(
 					diagnostics.FrontierExpansionsRejected++
 					continue
 				}
-				parentScore := common.ScoreResult{Primary: thread.Score, Finite: true}
 				outcome := retention.Decide(common.RetentionContext{
-					Parent:  &parentScore,
+					Parent:  &thread.ScoreDetails,
 					Current: scored,
 				})
 				improvement := thread.Score - scored.Primary
@@ -346,14 +354,16 @@ func expandThread(
 					completed = false
 					diagnostics.FrontierExpansionsAccepted++
 					children = append(children, GrowthThread{
-						AnchorName:  thread.AnchorName,
-						Provenance:  cloneAnchorProvenance(thread.Provenance),
-						Current:     candidate,
-						Score:       scored.Primary,
-						ParentScore: thread.Score,
-						Frontiers:   openFrontiers(candidate.Original),
-						History:     history,
-						Status:      ThreadStatusActive,
+						AnchorName:    thread.AnchorName,
+						Provenance:    cloneAnchorProvenance(thread.Provenance),
+						Current:       candidate,
+						Score:         scored.Primary,
+						ScoreDetails:  scored,
+						ParentScore:   thread.Score,
+						ParentDetails: thread.ScoreDetails,
+						Frontiers:     openFrontiers(candidate.Original),
+						History:       history,
+						Status:        ThreadStatusActive,
 					})
 				case common.RetentionRetainPartial:
 					diagnostics.FrontierExpansionsRejected++
@@ -362,6 +372,7 @@ func expandThread(
 						Provenance:    cloneAnchorProvenance(thread.Provenance),
 						Candidate:     candidate,
 						Score:         scored.Primary,
+						ScoreDetails:  scored,
 						Reason:        outcome.Reason,
 						FrontierCount: len(openFrontiers(candidate.Original)),
 						History:       history,

@@ -20,9 +20,12 @@ type RetentionOutcome = base.RetentionOutcome
 type RetentionContext = base.RetentionContext
 type RetentionPolicy = base.RetentionPolicy
 type RealMSEScorer = base.RealMSEScorer
+type RealPartialCoverageScorer = base.RealPartialCoverageScorer
 type ComplexMSEScorer = base.ComplexMSEScorer
 type RankedFullMatchPolicy = base.RankedFullMatchPolicy
 type ThresholdRetentionPolicy = base.ThresholdRetentionPolicy
+type CoverageRetentionPolicy = base.CoverageRetentionPolicy
+type PartialCoverageOptions = base.PartialCoverageOptions
 
 const (
 	RetentionContinue      = base.RetentionContinue

@@ -36,3 +36,8 @@ Automatic data-to-snippet spawning is now available in a strict first form:
 - package-level APIs only
 
 Windowed or partial-coverage matching is still deferred.
+
+Maze now also has a coverage-aware scoring path:
+- best fixed-size windows over ordered real samples
+- fit plus explicit coverage weighting
+- useful for local-law retention on larger targets

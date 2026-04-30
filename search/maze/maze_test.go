@@ -469,3 +469,98 @@ func TestMazeRealSearchFromSpawnedSnippets(t *testing.T) {
 		t.Fatal("expected snippet provenance on maze result")
 	}
 }
+
+func TestMazeRealSearchPartialCoverageFindsLocalWindow(t *testing.T) {
+	report, err := MazeRealSearchPartialCoverage(
+		common.BenchmarkCase[float64]{
+			Name: "local_window",
+			Samples: []common.Sample[float64]{
+				{Vars: map[string]float64{"x": 0}, Target: 0},
+				{Vars: map[string]float64{"x": 1}, Target: 1},
+				{Vars: map[string]float64{"x": 2}, Target: 2},
+				{Vars: map[string]float64{"x": 3}, Target: 100},
+				{Vars: map[string]float64{"x": 4}, Target: 100},
+			},
+			TargetKey: "x",
+		},
+		eval.Complex128Backend{},
+		[]Anchor{{Name: "x_anchor", Expr: ast.Variable{Name: "x"}}},
+		MazeOptions{
+			Bounds:          common.Bounds{MaxDepth: 2, MaxNodes: 3},
+			TopN:            3,
+			AcceptThreshold: 1.0,
+			RetainThreshold: 2.0,
+		},
+		CoverageOptions{
+			MinWindowSize:  3,
+			CoverageWeight: 0.25,
+		},
+	)
+	if err != nil {
+		t.Fatalf("MazeRealSearchPartialCoverage returned error: %v", err)
+	}
+	if len(report.BestCandidates) == 0 {
+		t.Fatal("expected best candidates")
+	}
+	best := report.BestCandidates[0]
+	if best.Candidate.Key != "x" {
+		t.Fatalf("expected x candidate first, got %q", best.Candidate.Key)
+	}
+	if best.ScoreDetails.CoveredCount != 3 {
+		t.Fatalf("expected covered count 3, got %d", best.ScoreDetails.CoveredCount)
+	}
+	if best.ScoreDetails.WindowStart != 0 || best.ScoreDetails.WindowEnd != 3 {
+		t.Fatalf("expected local window [0,3), got [%d,%d)", best.ScoreDetails.WindowStart, best.ScoreDetails.WindowEnd)
+	}
+}
+
+func TestMazeRealSearchFromSnippetArtifactPartialCoverage(t *testing.T) {
+	artifact, err := family.GenerateSnippetDataset(
+		family.CuratedSnippetTargets()[0],
+		concepts.StandardLibrary(),
+		[]family.SamplingDomain{
+			{
+				DomainID: "default",
+				Sampling: family.SamplingSpec{
+					Variable:    "x",
+					Start:       0.05,
+					Stop:        0.25,
+					PointCount:  4,
+					SampleCount: 1,
+					Seed:        0,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateSnippetDataset returned error: %v", err)
+	}
+
+	report, err := MazeRealSearchFromSnippetArtifactPartialCoverage(
+		artifact,
+		eval.Complex128Backend{},
+		[]string{artifact.Snippets[0].SnippetID},
+		MazeOptions{
+			Bounds:          common.Bounds{MaxDepth: 5, MaxNodes: 9},
+			TopN:            5,
+			AcceptThreshold: 1.0,
+			RetainThreshold: 2.0,
+		},
+		CoverageOptions{
+			MinWindowSize:  3,
+			CoverageWeight: 0.25,
+		},
+	)
+	if err != nil {
+		t.Fatalf("MazeRealSearchFromSnippetArtifactPartialCoverage returned error: %v", err)
+	}
+	if len(report.BestCandidates) == 0 {
+		t.Fatal("expected coverage-aware snippet-seeded maze candidates")
+	}
+	if report.BestCandidates[0].Provenance == nil {
+		t.Fatal("expected snippet provenance")
+	}
+	if report.BestCandidates[0].ScoreDetails.CoveredCount < 3 {
+		t.Fatalf("expected meaningful coverage, got %+v", report.BestCandidates[0].ScoreDetails)
+	}
+}
