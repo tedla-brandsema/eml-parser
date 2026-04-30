@@ -325,3 +325,147 @@ func TestMazeRealSearchFromSnippetArtifact(t *testing.T) {
 		t.Fatalf("unexpected source kind: %q", report.BestCandidates[0].Provenance.SourceKind)
 	}
 }
+
+func TestMatchSnippetAnchorsRanksExactWholeTraceFirst(t *testing.T) {
+	artifact, err := family.GenerateSnippetDataset(
+		family.CuratedSnippetTargets()[0],
+		concepts.StandardLibrary(),
+		[]family.SamplingDomain{
+			{
+				DomainID: "default",
+				Sampling: family.SamplingSpec{
+					Variable:    "x",
+					Start:       0.05,
+					Stop:        0.25,
+					PointCount:  4,
+					SampleCount: 1,
+					Seed:        0,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateSnippetDataset returned error: %v", err)
+	}
+
+	target, err := SearchTargetFromSnippetTrace(artifact, artifact.Snippets[0].SnippetID, "default", "")
+	if err != nil {
+		t.Fatalf("SearchTargetFromSnippetTrace returned error: %v", err)
+	}
+
+	report, err := MatchSnippetAnchors(target, []family.SnippetDatasetArtifact{artifact}, SpawnOptions{
+		TopK:     2,
+		MaxScore: 1e-12,
+	})
+	if err != nil {
+		t.Fatalf("MatchSnippetAnchors returned error: %v", err)
+	}
+	if len(report.Matches) == 0 {
+		t.Fatal("expected ranked snippet matches")
+	}
+	if report.Matches[0].SnippetID != artifact.Snippets[0].SnippetID {
+		t.Fatalf("expected exact snippet first, got %q", report.Matches[0].SnippetID)
+	}
+	if report.Matches[0].Score > 1e-12 {
+		t.Fatalf("expected near-zero exact match score, got %g", report.Matches[0].Score)
+	}
+	if len(report.Anchors) == 0 {
+		t.Fatal("expected promoted anchors")
+	}
+}
+
+func TestMatchSnippetAnchorsThresholdRejects(t *testing.T) {
+	artifact, err := family.GenerateSnippetDataset(
+		family.CuratedSnippetTargets()[0],
+		concepts.StandardLibrary(),
+		[]family.SamplingDomain{
+			{
+				DomainID: "default",
+				Sampling: family.SamplingSpec{
+					Variable:    "x",
+					Start:       0.05,
+					Stop:        0.25,
+					PointCount:  4,
+					SampleCount: 1,
+					Seed:        0,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateSnippetDataset returned error: %v", err)
+	}
+
+	target := common.NewSearchTarget([]string{"x"}, []common.Sample[float64]{
+		{Vars: map[string]float64{"x": 0.1}, Target: 999},
+		{Vars: map[string]float64{"x": 0.2}, Target: 999},
+		{Vars: map[string]float64{"x": 0.3}, Target: 999},
+		{Vars: map[string]float64{"x": 0.4}, Target: 999},
+	})
+	report, err := MatchSnippetAnchors(target, []family.SnippetDatasetArtifact{artifact}, SpawnOptions{
+		TopK:     2,
+		MaxScore: 1e-12,
+	})
+	if err != nil {
+		t.Fatalf("MatchSnippetAnchors returned error: %v", err)
+	}
+	if len(report.Anchors) != 0 {
+		t.Fatalf("expected no promoted anchors, got %d", len(report.Anchors))
+	}
+}
+
+func TestMazeRealSearchFromSpawnedSnippets(t *testing.T) {
+	artifact, err := family.GenerateSnippetDataset(
+		family.CuratedSnippetTargets()[0],
+		concepts.StandardLibrary(),
+		[]family.SamplingDomain{
+			{
+				DomainID: "default",
+				Sampling: family.SamplingSpec{
+					Variable:    "x",
+					Start:       0.05,
+					Stop:        0.25,
+					PointCount:  4,
+					SampleCount: 1,
+					Seed:        0,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateSnippetDataset returned error: %v", err)
+	}
+
+	target, err := SearchTargetFromSnippetTrace(artifact, artifact.Snippets[0].SnippetID, "default", "")
+	if err != nil {
+		t.Fatalf("SearchTargetFromSnippetTrace returned error: %v", err)
+	}
+
+	mazeReport, spawnReport, err := MazeRealSearchFromSpawnedSnippets(
+		target,
+		eval.Complex128Backend{},
+		[]family.SnippetDatasetArtifact{artifact},
+		SpawnOptions{
+			TopK:     1,
+			MaxScore: 1e-12,
+		},
+		MazeOptions{
+			Bounds:          common.Bounds{MaxDepth: 5, MaxNodes: 9},
+			TopN:            5,
+			AcceptThreshold: 10.0,
+			RetainThreshold: 10.0,
+		},
+	)
+	if err != nil {
+		t.Fatalf("MazeRealSearchFromSpawnedSnippets returned error: %v", err)
+	}
+	if len(spawnReport.Anchors) != 1 {
+		t.Fatalf("expected one spawned anchor, got %d", len(spawnReport.Anchors))
+	}
+	if len(mazeReport.BestCandidates) == 0 {
+		t.Fatal("expected maze candidates from spawned anchors")
+	}
+	if mazeReport.BestCandidates[0].Provenance == nil {
+		t.Fatal("expected snippet provenance on maze result")
+	}
+}

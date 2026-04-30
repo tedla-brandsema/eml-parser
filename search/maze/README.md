@@ -28,4 +28,11 @@ Current whole-dataset fit and threshold behavior are default scorer and
 retention-policy choices, not the permanent identity of maze search.
 
 Maze can now also be seeded from curated snippet artifacts as an explicit
-anchor source. Automatic data-to-snippet matching is still deferred.
+anchor source.
+
+Automatic data-to-snippet spawning is now available in a strict first form:
+- whole snippet traces only
+- deterministic ranking
+- package-level APIs only
+
+Windowed or partial-coverage matching is still deferred.
