@@ -720,6 +720,8 @@ Reason:
 
 ### 34. Python ML Subproject Scaffold
 
+Status: implemented
+
 Create the initial Python `ml/` area for experiments over Go-generated artifacts.
 
 Targets:
