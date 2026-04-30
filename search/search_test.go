@@ -92,6 +92,63 @@ func TestRealMSEPropagatesEvaluationError(t *testing.T) {
 	}
 }
 
+func TestRealMSEScorerMatchesRealMSE(t *testing.T) {
+	fixture, err := RealBenchmarkFixtureByName("exp_real_small")
+	if err != nil {
+		t.Fatalf("RealBenchmarkFixtureByName returned error: %v", err)
+	}
+	candidate := NewCandidate(fixture.Expr)
+	target := NewSearchTarget([]string{fixture.TargetKey}, fixture.Samples)
+
+	got, err := RealMSEScorer{}.ScoreCandidate(candidate, eval.Complex128Backend{}, target)
+	if err != nil {
+		t.Fatalf("ScoreCandidate returned error: %v", err)
+	}
+	want, err := RealMSE(candidate, eval.Complex128Backend{}, fixture.Samples)
+	if err != nil {
+		t.Fatalf("RealMSE returned error: %v", err)
+	}
+	if math.Abs(got.Primary-want) > 1e-12 {
+		t.Fatalf("expected scorer to match RealMSE, got %g want %g", got.Primary, want)
+	}
+	if !got.Finite {
+		t.Fatal("expected finite score")
+	}
+}
+
+func TestThresholdRetentionPolicyDecisions(t *testing.T) {
+	policy := ThresholdRetentionPolicy{
+		AcceptThreshold: 0.5,
+		RetainThreshold: 2.0,
+		MinImprovement:  0.1,
+	}
+	parent := &ScoreResult{Primary: 1.0, Finite: true}
+
+	accepted := policy.Decide(RetentionContext{
+		Parent:  parent,
+		Current: ScoreResult{Primary: 0.2, Finite: true},
+	})
+	if accepted.Decision != RetentionContinue {
+		t.Fatalf("expected continue decision, got %+v", accepted)
+	}
+
+	stalled := policy.Decide(RetentionContext{
+		Parent:  parent,
+		Current: ScoreResult{Primary: 0.95, Finite: true},
+	})
+	if stalled.Decision != RetentionRetainPartial || stalled.Reason != "stalled" {
+		t.Fatalf("expected stalled partial, got %+v", stalled)
+	}
+
+	pruned := policy.Decide(RetentionContext{
+		Parent:  parent,
+		Current: ScoreResult{Primary: 3.0, Finite: true},
+	})
+	if pruned.Decision != RetentionPrune {
+		t.Fatalf("expected prune decision, got %+v", pruned)
+	}
+}
+
 func TestReplaceSubtree(t *testing.T) {
 	expr := ast.Apply{
 		Left:  ast.Variable{Name: "x"},

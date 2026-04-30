@@ -154,6 +154,13 @@ Search is now only one consumer of the symbolic core.
 - Prefer work that supports synthetic datasets, equivalence families, snippet discovery, and partial assembly.
 - Treat equivalence analysis as a distinct stage from raw candidate generation.
 - Avoid premature normalization that would erase interesting combinatoric structure before it can be studied.
+- Search algorithms must not hard-code a single discovery objective as repository identity.
+- Scoring, target interpretation, and retain/prune semantics must remain adapter-based so full-match, partial-match, and ML-guided discovery can coexist.
+- New search work must preserve the ability to pursue:
+  - exact full recovery
+  - partial-law discovery
+  - ML-guided ranking or seeding
+- If an implementation temporarily narrows one discovery route, record that narrowing in `BACKLOG.md`.
 
 ## Monorepo Rules
 

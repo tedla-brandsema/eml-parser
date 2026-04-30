@@ -59,6 +59,86 @@ func TestMazeRealSearchRetainsPartialResults(t *testing.T) {
 	}
 }
 
+func TestMazeRealSearchExpandsNonRootFrontier(t *testing.T) {
+	expr := ast.Apply{
+		Left: ast.Apply{
+			Left:  ast.Variable{Name: "x"},
+			Right: ast.One{},
+		},
+		Right: ast.One{},
+	}
+	thread := GrowthThread{
+		AnchorName:  "nested_anchor",
+		Current:     common.NewCandidate(expr),
+		Score:       0.0,
+		ParentScore: 0.0,
+		Frontiers:   openFrontiers(expr),
+		Status:      ThreadStatusActive,
+	}
+
+	children, partials, _, err := expandThread(
+		thread,
+		[]ast.Expr{ast.Variable{Name: "x"}},
+		common.NewSearchTarget([]string{"x"}, []common.Sample[float64]{
+			{Vars: map[string]float64{"x": 0}, Target: 1},
+		}),
+		eval.Complex128Backend{},
+		MazeOptions{
+			Bounds:          common.Bounds{MaxDepth: 3, MaxNodes: 7},
+			AcceptThreshold: 1e9,
+			RetainThreshold: 1e9,
+			MinImprovement:  -10.0,
+		},
+		common.RealMSEScorer{},
+		common.ThresholdRetentionPolicy{
+			AcceptThreshold: 1e9,
+			RetainThreshold: 1e9,
+			MinImprovement:  -10.0,
+		},
+		map[string]bool{thread.Current.Key: true},
+		&MazeDiagnostics{},
+	)
+	if err != nil {
+		t.Fatalf("expandThread returned error: %v", err)
+	}
+	if len(children) == 0 {
+		t.Fatal("expected frontier expansions")
+	}
+	foundNonRoot := false
+	for _, child := range children {
+		if len(child.History) == 0 {
+			continue
+		}
+		if child.History[len(child.History)-1].FrontierPath != "root" {
+			foundNonRoot = true
+			break
+		}
+	}
+	for _, partial := range partials {
+		if len(partial.History) == 0 {
+			continue
+		}
+		if partial.History[len(partial.History)-1].FrontierPath != "root" {
+			foundNonRoot = true
+			break
+		}
+	}
+	if !foundNonRoot {
+		t.Fatal("expected at least one expansion from a non-root frontier")
+	}
+}
+
+func TestMazeRealSearchTracksMultipleOpenFrontiers(t *testing.T) {
+	expr := ast.Apply{Left: ast.Variable{Name: "x"}, Right: ast.One{}}
+	frontiers := openFrontiers(expr)
+	if len(frontiers) < 3 {
+		t.Fatalf("expected multiple frontiers, got %d", len(frontiers))
+	}
+	if frontiers[0].Path != "root" || frontiers[1].Path != "root.L" || frontiers[2].Path != "root.R" {
+		t.Fatalf("unexpected frontier ordering: %#v", frontiers[:3])
+	}
+}
+
 func TestMazeRealSearchDeterministic(t *testing.T) {
 	fixtures, err := common.RealBenchmarkFixtures()
 	if err != nil {
@@ -120,5 +200,40 @@ func TestMazeRealSearchMultiAnchorSurvival(t *testing.T) {
 	}
 	if report.Diagnostics.ThreadsSpawned < 2 {
 		t.Fatalf("expected at least two spawned threads, got %d", report.Diagnostics.ThreadsSpawned)
+	}
+}
+
+func TestMazeRealSearchStalledBranchBecomesPartial(t *testing.T) {
+	fixtures, err := common.RealBenchmarkFixtures()
+	if err != nil {
+		t.Fatalf("RealBenchmarkFixtures returned error: %v", err)
+	}
+	fixture := fixtures[0]
+
+	report, err := MazeRealSearch(fixture, eval.Complex128Backend{}, []Anchor{
+		{Name: "x_anchor", Expr: ast.Variable{Name: "x"}},
+	}, MazeOptions{
+		Bounds:          common.Bounds{MaxDepth: 2, MaxNodes: 3},
+		TopN:            3,
+		AcceptThreshold: 10.0,
+		RetainThreshold: 10.0,
+		MinImprovement:  100.0,
+		Atoms:           []ast.Expr{ast.One{}},
+	})
+	if err != nil {
+		t.Fatalf("MazeRealSearch returned error: %v", err)
+	}
+	if len(report.PartialResults) == 0 {
+		t.Fatal("expected partial results")
+	}
+	foundStalled := false
+	for _, partial := range report.PartialResults {
+		if partial.Reason == "stalled" {
+			foundStalled = true
+			break
+		}
+	}
+	if !foundStalled {
+		t.Fatal("expected a stalled partial result")
 	}
 }

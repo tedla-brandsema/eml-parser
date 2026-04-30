@@ -11,12 +11,33 @@ type Stats = base.Stats
 type Bounds = base.Bounds
 type Sample[T any] = base.Sample[T]
 type BenchmarkCase[T any] = base.BenchmarkCase[T]
+type SearchTarget[T any] = base.SearchTarget[T]
+type StaticTarget[T any] = base.StaticTarget[T]
+type ScoreResult = base.ScoreResult
+type Scorer[T any] = base.Scorer[T]
+type RetentionDecision = base.RetentionDecision
+type RetentionOutcome = base.RetentionOutcome
+type RetentionContext = base.RetentionContext
+type RetentionPolicy = base.RetentionPolicy
+type RealMSEScorer = base.RealMSEScorer
+type ComplexMSEScorer = base.ComplexMSEScorer
+type RankedFullMatchPolicy = base.RankedFullMatchPolicy
+type ThresholdRetentionPolicy = base.ThresholdRetentionPolicy
+
+const (
+	RetentionContinue      = base.RetentionContinue
+	RetentionRetainPartial = base.RetentionRetainPartial
+	RetentionPrune         = base.RetentionPrune
+)
 
 func NewCandidate(expr ast.Expr) Candidate { return base.NewCandidate(expr) }
 func TreeStats(expr ast.Expr) Stats        { return base.TreeStats(expr) }
 func CanonicalKey(expr ast.Expr) string    { return base.CanonicalKey(expr) }
 func Equal(a, b ast.Expr) bool             { return base.Equal(a, b) }
 func Subtrees(expr ast.Expr) []ast.Expr    { return base.Subtrees(expr) }
+func NewSearchTarget[T any](variables []string, samples []Sample[T]) StaticTarget[T] {
+	return base.NewSearchTarget(variables, samples)
+}
 
 func AtomicSeeds(variableNames ...string) []ast.Expr {
 	return base.AtomicSeeds(variableNames...)

@@ -9,42 +9,57 @@ import (
 	"eml-parser/search/common"
 )
 
+type ThreadStatus string
+
+const (
+	ThreadStatusActive          ThreadStatus = "active"
+	ThreadStatusRetainedPartial ThreadStatus = "retained_partial"
+	ThreadStatusPruned          ThreadStatus = "pruned"
+	ThreadStatusCompleted       ThreadStatus = "completed"
+)
+
 type Anchor struct {
 	Name string
 	Expr ast.Expr
 }
 
 type Frontier struct {
-	Name string
+	Index int
+	Path  string
+	Expr  ast.Expr
+	Open  bool
 }
 
 type ExpansionStep struct {
-	ParentKey string
-	Direction string
-	Atom      string
-	Score     float64
-	ResultKey string
-	Frontier  string
-	Improved  bool
+	ParentKey    string
+	Direction    string
+	Atom         string
+	Score        float64
+	ResultKey    string
+	Frontier     string
+	FrontierPath string
+	Improved     bool
+	Improvement  float64
 }
 
 type GrowthThread struct {
-	AnchorName string
-	Current    common.Candidate
-	Score      float64
-	Frontiers  []Frontier
-	History    []ExpansionStep
-	Active     bool
-	Pruned     bool
-	Completed  bool
+	AnchorName  string
+	Current     common.Candidate
+	Score       float64
+	ParentScore float64
+	Frontiers   []Frontier
+	History     []ExpansionStep
+	Status      ThreadStatus
+	StopReason  string
 }
 
 type PartialResult struct {
-	AnchorName string
-	Candidate  common.Candidate
-	Score      float64
-	Reason     string
-	History    []ExpansionStep
+	AnchorName    string
+	Candidate     common.Candidate
+	Score         float64
+	Reason        string
+	FrontierCount int
+	History       []ExpansionStep
 }
 
 type MazeOptions struct {
@@ -52,18 +67,24 @@ type MazeOptions struct {
 	TopN            int
 	AcceptThreshold float64
 	RetainThreshold float64
+	MinImprovement  float64
 	Atoms           []ast.Expr
 }
 
 type MazeDiagnostics struct {
-	AnchorCount           int
-	ThreadsSpawned        int
-	BranchesExpanded      int
-	BranchesPruned        int
-	BranchesRetained      int
-	DuplicateEliminations int
-	MaxDepthReached       int
-	BestScore             float64
+	AnchorCount                int
+	ThreadsSpawned             int
+	BranchesExpanded           int
+	BranchesPruned             int
+	BranchesRetained           int
+	BranchesCompleted          int
+	DuplicateEliminations      int
+	FrontierExpansionsTried    int
+	FrontierExpansionsAccepted int
+	FrontierExpansionsRejected int
+	MaxDepthReached            int
+	MaxFrontierCountSeen       int
+	BestScore                  float64
 }
 
 type CandidateScore struct {
@@ -80,13 +101,6 @@ type MazeReport struct {
 }
 
 func MazeRealSearch(fixture common.BenchmarkCase[float64], backend eval.Backend[complex128], anchors []Anchor, options MazeOptions) (MazeReport, error) {
-	if len(anchors) == 0 {
-		return MazeReport{}, nil
-	}
-	atoms := options.Atoms
-	if len(atoms) == 0 {
-		atoms = common.AtomicSeeds(fixture.TargetKey)
-	}
 	if options.TopN <= 0 {
 		options.TopN = 5
 	}
@@ -95,6 +109,33 @@ func MazeRealSearch(fixture common.BenchmarkCase[float64], backend eval.Backend[
 	}
 	if options.RetainThreshold == 0 {
 		options.RetainThreshold = 2.0
+	}
+	if options.MinImprovement == 0 {
+		options.MinImprovement = 1e-9
+	}
+	target := common.NewSearchTarget([]string{fixture.TargetKey}, fixture.Samples)
+	policy := common.ThresholdRetentionPolicy{
+		AcceptThreshold: options.AcceptThreshold,
+		RetainThreshold: options.RetainThreshold,
+		MinImprovement:  options.MinImprovement,
+	}
+	return MazeRealSearchWithPolicies(target, backend, anchors, options, common.RealMSEScorer{}, policy)
+}
+
+func MazeRealSearchWithPolicies(
+	target common.SearchTarget[float64],
+	backend eval.Backend[complex128],
+	anchors []Anchor,
+	options MazeOptions,
+	scorer common.Scorer[float64],
+	retention common.RetentionPolicy,
+) (MazeReport, error) {
+	if len(anchors) == 0 {
+		return MazeReport{}, nil
+	}
+	atoms := options.Atoms
+	if len(atoms) == 0 {
+		atoms = common.AtomicSeeds(target.VariableNames()...)
 	}
 
 	report := MazeReport{
@@ -109,29 +150,30 @@ func MazeRealSearch(fixture common.BenchmarkCase[float64], backend eval.Backend[
 
 	for _, anchor := range anchors {
 		candidate := common.NewCandidate(anchor.Expr)
-		score, err := common.RealMSE(candidate, backend, fixture.Samples)
-		if err != nil || !isFinite(score) {
+		scored, err := scorer.ScoreCandidate(candidate, backend, target)
+		if err != nil || !scored.Finite {
 			continue
 		}
+		threadFrontiers := openFrontiers(candidate.Original)
 		thread := GrowthThread{
-			AnchorName: anchor.Name,
-			Current:    candidate,
-			Score:      score,
-			Frontiers:  []Frontier{{Name: "root"}},
-			Active:     true,
+			AnchorName:  anchor.Name,
+			Current:     candidate,
+			Score:       scored.Primary,
+			ParentScore: scored.Primary,
+			Frontiers:   threadFrontiers,
+			Status:      ThreadStatusActive,
 		}
 		stack = append(stack, thread)
 		seen[candidate.Key] = true
 		report.Diagnostics.ThreadsSpawned++
-		if candidate.Stats.TreeDepth > report.Diagnostics.MaxDepthReached {
-			report.Diagnostics.MaxDepthReached = candidate.Stats.TreeDepth
-		}
-		if score < report.Diagnostics.BestScore {
-			report.Diagnostics.BestScore = score
+		report.Diagnostics.MaxDepthReached = max(report.Diagnostics.MaxDepthReached, candidate.Stats.TreeDepth)
+		report.Diagnostics.MaxFrontierCountSeen = max(report.Diagnostics.MaxFrontierCountSeen, len(threadFrontiers))
+		if scored.Primary < report.Diagnostics.BestScore {
+			report.Diagnostics.BestScore = scored.Primary
 		}
 		report.BestCandidates = append(report.BestCandidates, CandidateScore{
 			Candidate:  candidate,
-			Score:      score,
+			Score:      scored.Primary,
 			AnchorName: anchor.Name,
 		})
 	}
@@ -140,20 +182,28 @@ func MazeRealSearch(fixture common.BenchmarkCase[float64], backend eval.Backend[
 		thread := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
 
-		children, partials, err := expandThread(thread, atoms, fixture.Samples, backend, options, seen, &report.Diagnostics)
+		children, partials, completed, err := expandThread(thread, atoms, target, backend, options, scorer, retention, seen, &report.Diagnostics)
 		if err != nil {
 			return MazeReport{}, err
 		}
 		report.PartialResults = append(report.PartialResults, partials...)
 		report.Diagnostics.BranchesRetained += len(partials)
+		if completed {
+			report.Diagnostics.BranchesCompleted++
+		}
+
 		if len(children) == 0 {
-			if thread.Score <= options.RetainThreshold {
+			currentScore := common.ScoreResult{Primary: thread.Score, Finite: true}
+			parentScore := &common.ScoreResult{Primary: thread.ParentScore, Finite: true}
+			outcome := retention.Decide(common.RetentionContext{Parent: parentScore, Current: currentScore})
+			if outcome.Decision != common.RetentionPrune && thread.Status != ThreadStatusRetainedPartial {
 				report.PartialResults = append(report.PartialResults, PartialResult{
-					AnchorName: thread.AnchorName,
-					Candidate:  thread.Current,
-					Score:      thread.Score,
-					Reason:     "dead_end",
-					History:    append([]ExpansionStep(nil), thread.History...),
+					AnchorName:    thread.AnchorName,
+					Candidate:     thread.Current,
+					Score:         thread.Score,
+					Reason:        "dead_end",
+					FrontierCount: len(thread.Frontiers),
+					History:       append([]ExpansionStep(nil), thread.History...),
 				})
 				report.Diagnostics.BranchesRetained++
 			}
@@ -179,9 +229,8 @@ func MazeRealSearch(fixture common.BenchmarkCase[float64], backend eval.Backend[
 				AnchorName: child.AnchorName,
 				History:    append([]ExpansionStep(nil), child.History...),
 			})
-			if child.Current.Stats.TreeDepth > report.Diagnostics.MaxDepthReached {
-				report.Diagnostics.MaxDepthReached = child.Current.Stats.TreeDepth
-			}
+			report.Diagnostics.MaxDepthReached = max(report.Diagnostics.MaxDepthReached, child.Current.Stats.TreeDepth)
+			report.Diagnostics.MaxFrontierCountSeen = max(report.Diagnostics.MaxFrontierCountSeen, len(child.Frontiers))
 			if child.Score < report.Diagnostics.BestScore {
 				report.Diagnostics.BestScore = child.Score
 			}
@@ -216,81 +265,141 @@ func MazeRealSearch(fixture common.BenchmarkCase[float64], backend eval.Backend[
 func expandThread(
 	thread GrowthThread,
 	atoms []ast.Expr,
-	samples []common.Sample[float64],
+	target common.SearchTarget[float64],
 	backend eval.Backend[complex128],
 	options MazeOptions,
+	scorer common.Scorer[float64],
+	retention common.RetentionPolicy,
 	seen map[string]bool,
 	diagnostics *MazeDiagnostics,
-) ([]GrowthThread, []PartialResult, error) {
+) ([]GrowthThread, []PartialResult, bool, error) {
 	var children []GrowthThread
 	var partials []PartialResult
+	var completed = true
 
 	for _, frontier := range thread.Frontiers {
+		if !frontier.Open {
+			continue
+		}
 		for _, atom := range atoms {
-			for _, candidateExpr := range []struct {
+			for _, shape := range []struct {
 				direction string
 				expr      ast.Expr
 			}{
-				{direction: "left", expr: ast.Apply{Left: cloneExpr(thread.Current.Original), Right: cloneExpr(atom)}},
-				{direction: "right", expr: ast.Apply{Left: cloneExpr(atom), Right: cloneExpr(thread.Current.Original)}},
+				{direction: "left", expr: ast.Apply{Left: cloneExpr(frontier.Expr), Right: cloneExpr(atom)}},
+				{direction: "right", expr: ast.Apply{Left: cloneExpr(atom), Right: cloneExpr(frontier.Expr)}},
 			} {
-				candidate := common.NewCandidate(candidateExpr.expr)
+				diagnostics.FrontierExpansionsTried++
+				replaced, err := common.ReplaceSubtree(thread.Current.Original, frontier.Index, shape.expr)
+				if err != nil {
+					diagnostics.FrontierExpansionsRejected++
+					continue
+				}
+				candidate := common.NewCandidate(replaced)
 				if !common.WithinBounds(candidate.Original, options.Bounds) {
+					diagnostics.FrontierExpansionsRejected++
 					continue
 				}
 				if seen[candidate.Key] {
 					diagnostics.DuplicateEliminations++
+					diagnostics.FrontierExpansionsRejected++
 					continue
 				}
 				seen[candidate.Key] = true
 				diagnostics.BranchesExpanded++
 
-				score, err := common.RealMSE(candidate, backend, samples)
-				if err != nil {
+				scored, err := scorer.ScoreCandidate(candidate, backend, target)
+				if err != nil || !scored.Finite {
 					diagnostics.BranchesPruned++
+					diagnostics.FrontierExpansionsRejected++
 					continue
 				}
-				if !isFinite(score) {
-					diagnostics.BranchesPruned++
-					continue
-				}
+				parentScore := common.ScoreResult{Primary: thread.Score, Finite: true}
+				outcome := retention.Decide(common.RetentionContext{
+					Parent:  &parentScore,
+					Current: scored,
+				})
+				improvement := thread.Score - scored.Primary
 				step := ExpansionStep{
-					ParentKey: thread.Current.Key,
-					Direction: candidateExpr.direction,
-					Atom:      atom.String(),
-					Score:     score,
-					ResultKey: candidate.Key,
-					Frontier:  frontier.Name,
-					Improved:  score < thread.Score,
+					ParentKey:    thread.Current.Key,
+					Direction:    shape.direction,
+					Atom:         atom.String(),
+					Score:        scored.Primary,
+					ResultKey:    candidate.Key,
+					Frontier:     frontier.Path,
+					FrontierPath: frontier.Path,
+					Improved:     improvement > 0,
+					Improvement:  improvement,
 				}
 				history := append(append([]ExpansionStep(nil), thread.History...), step)
-				if score <= options.AcceptThreshold {
+
+				switch outcome.Decision {
+				case common.RetentionContinue:
+					completed = false
+					diagnostics.FrontierExpansionsAccepted++
 					children = append(children, GrowthThread{
-						AnchorName: thread.AnchorName,
-						Current:    candidate,
-						Score:      score,
-						Frontiers:  []Frontier{{Name: "root"}},
-						History:    history,
-						Active:     true,
+						AnchorName:  thread.AnchorName,
+						Current:     candidate,
+						Score:       scored.Primary,
+						ParentScore: thread.Score,
+						Frontiers:   openFrontiers(candidate.Original),
+						History:     history,
+						Status:      ThreadStatusActive,
 					})
-					continue
-				}
-				if score <= options.RetainThreshold {
+				case common.RetentionRetainPartial:
+					diagnostics.FrontierExpansionsRejected++
 					partials = append(partials, PartialResult{
-						AnchorName: thread.AnchorName,
-						Candidate:  candidate,
-						Score:      score,
-						Reason:     "retained_after_validation",
-						History:    history,
+						AnchorName:    thread.AnchorName,
+						Candidate:     candidate,
+						Score:         scored.Primary,
+						Reason:        outcome.Reason,
+						FrontierCount: len(openFrontiers(candidate.Original)),
+						History:       history,
 					})
-					continue
+				case common.RetentionPrune:
+					diagnostics.BranchesPruned++
+					diagnostics.FrontierExpansionsRejected++
 				}
-				diagnostics.BranchesPruned++
 			}
 		}
 	}
 
-	return children, partials, nil
+	return children, partials, completed, nil
+}
+
+func openFrontiers(expr ast.Expr) []Frontier {
+	type subtreeRef struct {
+		Index int
+		Path  string
+		Expr  ast.Expr
+	}
+	var refs []subtreeRef
+	index := 0
+	var walk func(ast.Expr, string)
+	walk = func(node ast.Expr, path string) {
+		refs = append(refs, subtreeRef{
+			Index: index,
+			Path:  path,
+			Expr:  cloneExpr(node),
+		})
+		index++
+		if app, ok := node.(ast.Apply); ok {
+			walk(app.Left, path+".L")
+			walk(app.Right, path+".R")
+		}
+	}
+	walk(expr, "root")
+
+	out := make([]Frontier, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, Frontier{
+			Index: ref.Index,
+			Path:  ref.Path,
+			Expr:  ref.Expr,
+			Open:  true,
+		})
+	}
+	return out
 }
 
 func dedupeCandidateScores(in []CandidateScore) []CandidateScore {
@@ -326,4 +435,11 @@ func cloneExpr(expr ast.Expr) ast.Expr {
 	default:
 		return nil
 	}
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

@@ -80,7 +80,14 @@ func (d SearchDiagnostics) String() string {
 // EnumerativeRealSearch performs a small bounded enumerative search over raw EML
 // candidates and scores them against a named real-valued fixture.
 func EnumerativeRealSearch(fixture BenchmarkCase[float64], backend eval.Backend[complex128], options SearchOptions) (SearchReport, error) {
-	atoms := AtomicSeeds(fixture.TargetKey)
+	target := NewSearchTarget([]string{fixture.TargetKey}, fixture.Samples)
+	return EnumerativeRealSearchWithPolicies(target, backend, options, RealMSEScorer{}, RankedFullMatchPolicy{})
+}
+
+// EnumerativeRealSearchWithPolicies performs bounded enumerative search over a
+// real-valued target using pluggable scoring and retention policies.
+func EnumerativeRealSearchWithPolicies(target SearchTarget[float64], backend eval.Backend[complex128], options SearchOptions, scorer Scorer[float64], retention RetentionPolicy) (SearchReport, error) {
+	atoms := AtomicSeeds(target.VariableNames()...)
 	exprs := EnumerateBounded(atoms, options.Bounds)
 	candidates := UniqueCandidates(exprs)
 
@@ -98,20 +105,24 @@ func EnumerativeRealSearch(fixture BenchmarkCase[float64], backend eval.Backend[
 	results := make([]SearchResult, 0, len(candidates))
 	var totalScore float64
 	for _, candidate := range candidates {
-		score, err := RealMSE(candidate, backend, fixture.Samples)
+		scored, err := scorer.ScoreCandidate(candidate, backend, target)
 		if err != nil {
 			diagnostics.EvaluationRejects++
 			continue
 		}
-		if !isFiniteScore(score) {
+		if !scored.Finite {
 			diagnostics.NonFiniteCount++
+			continue
+		}
+		outcome := retention.Decide(RetentionContext{Current: scored})
+		if outcome.Decision != RetentionContinue {
 			continue
 		}
 		results = append(results, SearchResult{
 			Candidate: candidate,
-			Score:     score,
+			Score:     scored.Primary,
 		})
-		totalScore += score
+		totalScore += scored.Primary
 	}
 	diagnostics.ScoredCount = len(results)
 	if diagnostics.ScoredCount > 0 {
@@ -155,7 +166,14 @@ func EnumerativeRealSearch(fixture BenchmarkCase[float64], backend eval.Backend[
 // candidates, stopping early when a near-zero score (< 1e-12) is found.
 // Per-depth statistics are recorded in SearchDiagnostics.Layers.
 func LayeredRealSearch(fixture BenchmarkCase[float64], backend eval.Backend[complex128], options SearchOptions) (SearchReport, error) {
-	atoms := AtomicSeeds(fixture.TargetKey)
+	target := NewSearchTarget([]string{fixture.TargetKey}, fixture.Samples)
+	return LayeredRealSearchWithPolicies(target, backend, options, RealMSEScorer{}, RankedFullMatchPolicy{})
+}
+
+// LayeredRealSearchWithPolicies performs depth-by-depth bounded search over a
+// real-valued target using pluggable scoring and retention policies.
+func LayeredRealSearchWithPolicies(target SearchTarget[float64], backend eval.Backend[complex128], options SearchOptions, scorer Scorer[float64], retention RetentionPolicy) (SearchReport, error) {
+	atoms := AtomicSeeds(target.VariableNames()...)
 
 	maxDepth := options.Bounds.MaxDepth
 	if maxDepth == 0 {
@@ -198,19 +216,23 @@ func LayeredRealSearch(fixture BenchmarkCase[float64], backend eval.Backend[comp
 		// Score layer candidates.
 		layerBest := math.Inf(1)
 		for _, candidate := range layerCandidates {
-			score, err := RealMSE(candidate, backend, fixture.Samples)
+			scored, err := scorer.ScoreCandidate(candidate, backend, target)
 			if err != nil {
 				diagnostics.EvaluationRejects++
 				continue
 			}
-			if !isFiniteScore(score) {
+			if !scored.Finite {
 				diagnostics.NonFiniteCount++
 				continue
 			}
-			allResults = append(allResults, SearchResult{Candidate: candidate, Score: score})
+			outcome := retention.Decide(RetentionContext{Current: scored})
+			if outcome.Decision != RetentionContinue {
+				continue
+			}
+			allResults = append(allResults, SearchResult{Candidate: candidate, Score: scored.Primary})
 			diagnostics.ScoredCount++
-			if score < layerBest {
-				layerBest = score
+			if scored.Primary < layerBest {
+				layerBest = scored.Primary
 			}
 		}
 
