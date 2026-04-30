@@ -148,6 +148,21 @@ These grouped datasets are the intended bridge from symbolic equivalence
 families to later ML tasks that need paired or grouped examples rather than
 only one anchor tree per file.
 
+The snippet corpus now adds:
+
+- `artifacts/snippets/`
+  - one snippet dataset per curated parent target
+  - each file preserves:
+    - full parent-target metadata,
+    - exact subtree snippet descriptors,
+    - stable subtree locators,
+    - multiple deterministic domains,
+    - whole-target sample sets,
+    - per-snippet sample sets
+
+This corpus is the source of truth for later partial-law and assembly-oriented
+ML tasks.
+
 ## Read / Write Direction
 
 The intended data flow is:

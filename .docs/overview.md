@@ -307,6 +307,7 @@ Current status:
 - a first shared family-artifact generator should now emit deterministic `artifacts/equivalence/*.json` corpora from curated raw and concept-derived seeds, with canonical metadata, concept provenance, and sampled point sets for ML consumption.
 - a richer v2 equivalence-family corpus should now exist alongside those anchor artifacts, using `*.family.json` files with explicit anchors, related members, relation labels, and shared sample bundles for later paired/grouped dataset generation.
 - a paired/grouped dataset layer should now exist under `artifacts/equivalence/paired/`, derived from curated equivalence families across multiple deterministic sampling domains and preserving anchor/member roles plus relation labels.
+- a snippet dataset layer should now exist under `artifacts/snippets/`, derived from curated parent targets and preserving exact subtree snippet provenance, overlapping subtree structure, whole-target samples, and per-snippet sample bundles across multiple deterministic domains.
 - the Python `family_match` scaffold should now be able to consume those Go-generated artifacts directly, while retaining the mock path as a desktop-scale fallback.
 - the next research layer should now focus on synthetic data plus EML combinatorics:
   - multiple trees for the same law,

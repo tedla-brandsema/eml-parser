@@ -796,6 +796,8 @@ Reason:
 
 ### 38. Snippet-Level Dataset Generator
 
+Status: implemented
+
 Create corpora aimed at partial-law discovery rather than only whole-formula recovery.
 
 Targets:

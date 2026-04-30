@@ -61,6 +61,11 @@ The next dataset layer now lives under `artifacts/equivalence/paired/`. Those
 files preserve grouped anchor/member structure across multiple domains and are
 intended for later ML tasks beyond the current `family_match` baseline.
 
+An additional snippet corpus now lives under `artifacts/snippets/`. Those files
+preserve full parent targets, exact subtree snippet labels, and matched
+whole-target versus snippet sample sets for later partial-law and assembly
+experiments.
+
 ## Models
 
 The first model family mirrors the useful simplicity of `quotient-collapse`:

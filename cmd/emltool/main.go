@@ -257,6 +257,20 @@ func run(args []string) error {
 			fmt.Printf("%s -> %s (domains=%d groups=%d)\n", artifacts[i].FamilyName, paths[i], len(artifacts[i].SamplingDomains), len(artifacts[i].Groups))
 		}
 		return nil
+	case "gen-snippet-datasets":
+		projectRoot, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("resolve working directory: %w", err)
+		}
+		paths, artifacts, err := family.WriteCuratedSnippetDatasets(projectRoot)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("generated: %d\n", len(paths))
+		for i := range paths {
+			fmt.Printf("%s -> %s (snippets=%d domains=%d)\n", artifacts[i].TargetID, paths[i], len(artifacts[i].Snippets), len(artifacts[i].SamplingDomains))
+		}
+		return nil
 	default:
 		return usageError(fmt.Sprintf("unknown command %q", args[0]))
 	}
@@ -270,7 +284,7 @@ func joinOrNone(values []string) string {
 }
 
 func usageError(prefix string) error {
-	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real|formalize|run-experiment|report-suite|gen-family-artifacts|gen-equivalence-families|gen-paired-equivalence-datasets> [concept]"
+	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real|formalize|run-experiment|report-suite|gen-family-artifacts|gen-equivalence-families|gen-paired-equivalence-datasets|gen-snippet-datasets> [concept]"
 	if prefix == "" {
 		return errors.New(usage)
 	}
