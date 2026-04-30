@@ -165,3 +165,48 @@ Long-term follow-up:
   more of the standard library can be moved from negative or stretch controls
   into exact controls,
 - then revise the oracle suite accordingly.
+
+### 6. Not Every Structural Subtree Is A Valid Standalone Snippet
+
+Status: open
+
+During item 38, the first concept-derived snippet target was based on the
+expanded `square` concept. One selected internal subtree produced non-real
+values when evaluated standalone, even though the parent target itself was a
+valid real-valued target on the chosen domain.
+
+Observed behavior:
+
+- a selected subtree from the expanded `square` parent crossed into principal-
+  branch complex `log` behavior when evaluated on its own,
+- the snippet generator failed with a non-real output rather than a precision
+  error,
+- replacing the target with a safer concept-derived parent (`id`) restored a
+  valid v1 snippet corpus.
+
+What we did:
+
+- narrowed the snippet v1 target set to parents and selected subtrees that are
+  real-valued on the configured domains,
+- changed the concept-derived snippet parent from `square` to `id`,
+- kept the snippet generator strict: subtree samples must fail loudly if they
+  produce non-real outputs.
+
+Why this matters:
+
+- a structurally selected raw EML subtree is not automatically a semantically
+  valid standalone snippet,
+- parent validity does not imply snippet validity,
+- later snippet and assembly work may need to distinguish:
+  - structural subtrees,
+  - standalone-valid snippets,
+  - and context-dependent fragments that only make sense inside a larger
+    parent.
+
+Long-term follow-up:
+
+- define a clearer snippet-validity policy beyond “is a subtree of the parent,”
+- consider separate artifact classes for standalone-valid snippets versus
+  context-dependent fragments,
+- and decide whether later ML tasks should learn from both classes or only from
+  standalone-valid snippets.

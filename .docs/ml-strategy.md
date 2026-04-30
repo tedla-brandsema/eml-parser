@@ -114,6 +114,14 @@ A useful system should also be able to:
 - test whether snippets can be composed into a larger coherent tree,
 - preserve partial recoveries when full assembly fails.
 
+One important constraint is now explicit from item 38:
+
+- not every structural raw EML subtree is a valid standalone snippet,
+- a parent can be real-valued on a domain while one of its internal subtrees,
+  taken in isolation, crosses into branch-sensitive complex behavior,
+- so later snippet work must distinguish structural subtrees from standalone-
+  valid snippet targets.
+
 This is the intended human-AI collaboration model:
 
 - the system proposes local laws and compatible fragments,
@@ -156,6 +164,7 @@ At the current stage, the Go side now emits:
 - anchor-style family artifacts for the first `family_match` ML task,
 - and richer v2 equivalence-family artifacts for later paired/grouped and snippet-oriented dataset generation.
 - grouped paired-equivalence datasets under `artifacts/equivalence/paired/`, derived from curated family artifacts across multiple deterministic sampling domains.
+- snippet datasets under `artifacts/snippets/`, derived from curated parent targets with exact structural subtree labels and per-snippet sample bundles.
 
 The Python `ml/` path still consumes the simpler anchor artifacts until the
 later ML items migrate it first to grouped paired-equivalence datasets and then
