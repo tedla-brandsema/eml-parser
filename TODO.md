@@ -737,6 +737,8 @@ Reason:
 
 ### 35. Synthetic Tree Family Generator
 
+Status: implemented
+
 Use the Go core to generate controlled families of raw EML trees and concept expansions.
 
 Targets:
@@ -752,6 +754,8 @@ Reason:
 - synthetic data is now a first-class research instrument rather than a side utility
 
 ### 36. Equivalence Family Corpus Format
+
+Status: implemented
 
 Define a corpus format for multiple trees that are related to the same law.
 

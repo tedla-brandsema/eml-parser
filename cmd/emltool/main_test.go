@@ -222,6 +222,136 @@ func TestRunSearchReal(t *testing.T) {
 	}
 }
 
+func TestRunGenFamilyArtifacts(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd failed: %v", err)
+	}
+	projectRoot := filepath.Dir(filepath.Dir(wd))
+	outDir := filepath.Join(projectRoot, "artifacts", "equivalence")
+
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		t.Fatalf("ReadDir failed: %v", err)
+	}
+	for _, entry := range entries {
+		if entry.Name() == ".gitkeep" {
+			continue
+		}
+		if err := os.Remove(filepath.Join(outDir, entry.Name())); err != nil {
+			t.Fatalf("Remove failed: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		entries, _ := os.ReadDir(outDir)
+		for _, entry := range entries {
+			if entry.Name() == ".gitkeep" {
+				continue
+			}
+			_ = os.Remove(filepath.Join(outDir, entry.Name()))
+		}
+	})
+
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe failed: %v", err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = stdout }()
+
+	if err := os.Chdir(projectRoot); err != nil {
+		t.Fatalf("os.Chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(wd) }()
+
+	if err := run([]string{"gen-family-artifacts"}); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	_ = w.Close()
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy failed: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "generated: 4") {
+		t.Fatalf("unexpected command output: %q", out)
+	}
+	for _, name := range []string{"raw_identity.json", "concept_exp.json", "raw_exp_exp.json", "concept_sigmoid.json"} {
+		if _, err := os.Stat(filepath.Join(outDir, name)); err != nil {
+			t.Fatalf("expected artifact %q: %v", name, err)
+		}
+	}
+}
+
+func TestRunGenEquivalenceFamilies(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd failed: %v", err)
+	}
+	projectRoot := filepath.Dir(filepath.Dir(wd))
+	outDir := filepath.Join(projectRoot, "artifacts", "equivalence")
+
+	entries, err := os.ReadDir(outDir)
+	if err != nil {
+		t.Fatalf("ReadDir failed: %v", err)
+	}
+	for _, entry := range entries {
+		if entry.Name() == ".gitkeep" {
+			continue
+		}
+		if err := os.Remove(filepath.Join(outDir, entry.Name())); err != nil {
+			t.Fatalf("Remove failed: %v", err)
+		}
+	}
+	t.Cleanup(func() {
+		entries, _ := os.ReadDir(outDir)
+		for _, entry := range entries {
+			if entry.Name() == ".gitkeep" {
+				continue
+			}
+			_ = os.Remove(filepath.Join(outDir, entry.Name()))
+		}
+	})
+
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe failed: %v", err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = stdout }()
+
+	if err := os.Chdir(projectRoot); err != nil {
+		t.Fatalf("Chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(wd) }()
+
+	if err := run([]string{"gen-equivalence-families"}); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+	_ = w.Close()
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy failed: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "generated: 3") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+	for _, name := range []string{
+		"identity_exact.family.json",
+		"identity_normalized.family.json",
+		"exp_known_equivalence.family.json",
+	} {
+		if _, err := os.Stat(filepath.Join(outDir, name)); err != nil {
+			t.Fatalf("expected generated file %q: %v", name, err)
+		}
+	}
+}
+
 func TestRunFormalize(t *testing.T) {
 	stdout := os.Stdout
 	r, w, err := os.Pipe()

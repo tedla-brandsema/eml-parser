@@ -142,7 +142,7 @@ The next implementation priorities should be:
 1. formalize the monorepo split in docs and repository layout,
 2. define artifact contracts between Go and Python,
 3. generate synthetic datasets from raw trees and concept expansions,
-4. generate paired or grouped equivalence families,
+4. generate explicit equivalence-family corpora with anchors, related members, relation labels, and shared sample bundles,
 5. define snippet-level datasets and partial-fit evaluation,
 6. scaffold the Python ML subproject against those artifacts.
 
@@ -150,3 +150,11 @@ Search improvement remains useful, but it is no longer the sole center of gravit
 
 The source of truth for ownership and read/write direction is
 `.docs/artifact-contract.md`.
+
+At the current stage, the Go side now emits:
+
+- anchor-style family artifacts for the first `family_match` ML task,
+- and richer v2 equivalence-family artifacts for later paired/grouped and snippet-oriented dataset generation.
+
+The Python `ml/` path still consumes the simpler anchor artifacts until the
+later dataset-generator items migrate it to the richer family-level corpora.

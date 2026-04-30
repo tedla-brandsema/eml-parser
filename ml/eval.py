@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import csv
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,7 +9,8 @@ import random
 import numpy as np
 import torch
 
-from ml.datasets.mock_family_match import FAMILIES, make_test_loader
+from ml.datasets.artifact_family_match import make_loader as make_artifact_loader
+from ml.datasets.mock_family_match import FAMILIES, make_test_loader as make_mock_test_loader
 from ml.metrics import family_accuracy, permutation_sensitivity, topk_family_accuracy
 from ml.models.baseline import Baseline
 from ml.models.oracle import OracleFamilyModel
@@ -24,41 +26,85 @@ CHECKPOINT_DIR = ML_DIR / "checkpoints"
 RESULTS_DIR = ML_DIR / "results"
 RESULTS_DIR.mkdir(exist_ok=True)
 
-SET_SIZE = 16
-D_POINT = 2
-N_CLASSES = len(FAMILIES)
 EVAL_SEEDS = [0, 1, 2, 3, 4]
+
+
+@dataclass(frozen=True)
+class DatasetConfig:
+    name: str
+    loader: object
+    set_size: int
+    d_point: int
+    n_classes: int
 
 
 @dataclass(frozen=True)
 class ModelSpec:
     name: str
     input_key: str
-    factory: callable
 
 
 MODELS: tuple[ModelSpec, ...] = (
-    ModelSpec(
-        "baseline",
-        "x",
-        lambda: Baseline(set_size=SET_SIZE, d_point=D_POINT, n_classes=N_CLASSES),
-    ),
-    ModelSpec(
-        "set_encoder",
-        "x",
-        lambda: SampleSetEncoder(d_point=D_POINT, hidden=64, n_classes=N_CLASSES, agg="sum"),
-    ),
-    ModelSpec(
-        "set_encoder_plus_stats",
-        "x",
-        lambda: SampleSetEncoderPlusStats(d_point=D_POINT, hidden=64, n_classes=N_CLASSES, agg="sum"),
-    ),
-    ModelSpec(
-        "oracle",
-        "oracle",
-        lambda: OracleFamilyModel(d_oracle=N_CLASSES, hidden=32, n_classes=N_CLASSES),
-    ),
+    ModelSpec("baseline", "x"),
+    ModelSpec("set_encoder", "x"),
+    ModelSpec("set_encoder_plus_stats", "x"),
+    ModelSpec("oracle", "oracle"),
 )
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Evaluate family-match models for eml-parser")
+    parser.add_argument(
+        "--artifact-dir",
+        type=Path,
+        default=None,
+        help="Directory of Go-generated family artifact JSON files under artifacts/equivalence/",
+    )
+    parser.add_argument("--batch-size", type=int, default=256, help="Evaluation batch size")
+    return parser.parse_args()
+
+
+def build_dataset_config(args: argparse.Namespace, *, seed: int) -> DatasetConfig:
+    if args.artifact_dir is None:
+        loader = make_mock_test_loader(
+            batch_size=args.batch_size,
+            n_samples=1024,
+            set_size=16,
+            seed=seed,
+        )
+        return DatasetConfig(
+            name="mock_family_match",
+            loader=loader,
+            set_size=16,
+            d_point=2,
+            n_classes=len(FAMILIES),
+        )
+
+    artifact_dir = args.artifact_dir.resolve()
+    paths = sorted(p for p in artifact_dir.glob("*.json") if not p.name.endswith(".family.json"))
+    if not paths:
+        raise ValueError(f"no artifact JSON files found under {artifact_dir}")
+    loader = make_artifact_loader(paths, batch_size=args.batch_size, shuffle=False)
+    dataset = loader.dataset
+    return DatasetConfig(
+        name="artifact_family_match",
+        loader=loader,
+        set_size=dataset.set_size,
+        d_point=dataset.d_point,
+        n_classes=dataset.n_classes,
+    )
+
+
+def build_model(spec: ModelSpec, config: DatasetConfig) -> torch.nn.Module:
+    if spec.name == "baseline":
+        return Baseline(set_size=config.set_size, d_point=config.d_point, n_classes=config.n_classes)
+    if spec.name == "set_encoder":
+        return SampleSetEncoder(d_point=config.d_point, hidden=64, n_classes=config.n_classes, agg="sum")
+    if spec.name == "set_encoder_plus_stats":
+        return SampleSetEncoderPlusStats(d_point=config.d_point, hidden=64, n_classes=config.n_classes, agg="sum")
+    if spec.name == "oracle":
+        return OracleFamilyModel(d_oracle=config.n_classes, hidden=32, n_classes=config.n_classes)
+    raise ValueError(f"unsupported model spec: {spec.name}")
 
 
 def set_seed(seed: int) -> None:
@@ -91,30 +137,36 @@ def load_training_times() -> dict[tuple[str, str], float]:
 
 
 def main() -> None:
+    args = parse_args()
     train_times = load_training_times()
     rows: list[dict[str, object]] = []
 
     for seed in EVAL_SEEDS:
         set_seed(seed)
-        loader = make_test_loader(batch_size=256, n_samples=1024, set_size=SET_SIZE, seed=seed)
+        config = build_dataset_config(args, seed=seed)
+        if seed == EVAL_SEEDS[0]:
+            print(
+                f"Evaluation dataset: {config.name} "
+                f"(set_size={config.set_size}, d_point={config.d_point}, n_classes={config.n_classes})"
+            )
 
         seed_rows: list[dict[str, object]] = []
         oracle_acc = None
 
         for spec in MODELS:
-            model = spec.factory().to(DEVICE)
-            load_checkpoint(model, spec.name, "mock_family_match")
+            model = build_model(spec, config).to(DEVICE)
+            load_checkpoint(model, spec.name, config.name)
 
             row: dict[str, object] = {
                 "model": spec.name,
-                "dataset": "mock_family_match",
+                "dataset": config.name,
                 "seed": seed,
-                "family_accuracy": family_accuracy(model, loader, input_key=spec.input_key),
-                "top3_family_accuracy": topk_family_accuracy(model, loader, input_key=spec.input_key, k=3),
-                "train_time_sec": train_times.get((spec.name, "mock_family_match")),
+                "family_accuracy": family_accuracy(model, config.loader, input_key=spec.input_key),
+                "top3_family_accuracy": topk_family_accuracy(model, config.loader, input_key=spec.input_key, k=3),
+                "train_time_sec": train_times.get((spec.name, config.name)),
             }
 
-            perm = permutation_sensitivity(model, loader, input_key=spec.input_key)
+            perm = permutation_sensitivity(model, config.loader, input_key=spec.input_key)
             if perm is not None:
                 row["permutation_sensitivity"] = perm
 

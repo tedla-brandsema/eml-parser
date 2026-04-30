@@ -118,6 +118,21 @@ These remain under `experiments/`.
 
 These belong under `artifacts/`.
 
+The equivalence-family corpus now has two layers:
+
+- item-35 anchor artifacts
+  - one generated anchor tree per file with sampled point sets
+- item-36 family artifacts
+  - one explicit equivalence family per file, including:
+    - one anchor entry,
+    - one or more related member entries,
+    - explicit relation types,
+    - shared deterministic sample bundles for later paired/grouped dataset generation
+
+The current item-34/35 ML `family_match` path still reads the simpler anchor
+artifacts. The richer family-level corpus is an additive artifact family for
+later items rather than an in-place replacement.
+
 ## Read / Write Direction
 
 The intended data flow is:

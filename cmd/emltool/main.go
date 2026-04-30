@@ -10,6 +10,7 @@ import (
 	"eml-parser/concepts"
 	"eml-parser/eval"
 	"eml-parser/experiment"
+	"eml-parser/family"
 	"eml-parser/formal"
 	"eml-parser/normalize"
 	"eml-parser/search"
@@ -214,6 +215,34 @@ func run(args []string) error {
 		fmt.Printf("success_count: %d\n", summary.SuccessCount)
 		fmt.Printf("failure_count: %d\n", summary.FailureCount)
 		return nil
+	case "gen-family-artifacts":
+		projectRoot, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("resolve working directory: %w", err)
+		}
+		paths, artifacts, err := family.WriteCuratedArtifacts(projectRoot)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("generated: %d\n", len(paths))
+		for i := range paths {
+			fmt.Printf("%s -> %s (%s)\n", artifacts[i].FamilyName, paths[i], artifacts[i].CanonicalKey)
+		}
+		return nil
+	case "gen-equivalence-families":
+		projectRoot, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("resolve working directory: %w", err)
+		}
+		paths, artifacts, err := family.WriteCuratedEquivalenceFamilies(projectRoot)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("generated: %d\n", len(paths))
+		for i := range paths {
+			fmt.Printf("%s -> %s (members=%d)\n", artifacts[i].FamilyName, paths[i], len(artifacts[i].Members))
+		}
+		return nil
 	default:
 		return usageError(fmt.Sprintf("unknown command %q", args[0]))
 	}
@@ -227,7 +256,7 @@ func joinOrNone(values []string) string {
 }
 
 func usageError(prefix string) error {
-	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real|formalize|run-experiment|report-suite> [concept]"
+	usage := "usage: emltool <list|show|deps|expand|stats|normalize|analyze|inspect|search-real|formalize|run-experiment|report-suite|gen-family-artifacts|gen-equivalence-families> [concept]"
 	if prefix == "" {
 		return errors.New(usage)
 	}

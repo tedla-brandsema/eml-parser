@@ -304,6 +304,9 @@ Current status:
 - suite reporting should now be able to aggregate explicit result artifacts into one JSON summary and one Markdown summary under `experiments/reports/`, including recovery-class counts, target-family counts, diagnostic ranges, and top recovered expressions.
 - an initial oracle suite should now exist as committed experiment specs covering exact controls, a small nested composite control, and honest current-boundary failures such as additive and larger-library targets.
 - paper-readiness notes should now make explicit what the current suite can support as evidence, what it cannot yet support, and which threats to validity must be disclosed if the project is written up.
+- a first shared family-artifact generator should now emit deterministic `artifacts/equivalence/*.json` corpora from curated raw and concept-derived seeds, with canonical metadata, concept provenance, and sampled point sets for ML consumption.
+- a richer v2 equivalence-family corpus should now exist alongside those anchor artifacts, using `*.family.json` files with explicit anchors, related members, relation labels, and shared sample bundles for later paired/grouped dataset generation.
+- the Python `family_match` scaffold should now be able to consume those Go-generated artifacts directly, while retaining the mock path as a desktop-scale fallback.
 - the next research layer should now focus on synthetic data plus EML combinatorics:
   - multiple trees for the same law,
   - local subtree substitutions,

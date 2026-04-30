@@ -19,15 +19,31 @@ class ArtifactFamilyMatchDataset(Dataset):
 
     def __init__(self, paths: Iterable[Path]) -> None:
         self.samples: list[dict[str, torch.Tensor]] = []
-        for path in paths:
+        self.paths = sorted(Path(path) for path in paths)
+        self.n_classes = 0
+        self.set_size = 0
+        self.d_point = 0
+
+        for path in self.paths:
             with open(path) as f:
                 payload = json.load(f)
 
             if "samples" not in payload:
                 raise ValueError(f"{path} is missing 'samples'")
 
+            self.n_classes = max(self.n_classes, int(payload.get("n_families", 0)))
+
             for sample in payload["samples"]:
                 x = torch.tensor(sample["points"], dtype=torch.float32)
+                if x.ndim != 2:
+                    raise ValueError(f"{path} sample points must be rank-2, got shape {tuple(x.shape)}")
+                if self.set_size == 0:
+                    self.set_size = int(x.shape[0])
+                    self.d_point = int(x.shape[1])
+                elif self.set_size != int(x.shape[0]) or self.d_point != int(x.shape[1]):
+                    raise ValueError(
+                        f"{path} sample shape {tuple(x.shape)} does not match prior shape {(self.set_size, self.d_point)}"
+                    )
                 y = torch.tensor(sample["family_id"], dtype=torch.long)
                 oracle = sample.get("oracle")
                 if oracle is None:
@@ -39,6 +55,11 @@ class ArtifactFamilyMatchDataset(Dataset):
                     oracle_tensor = torch.tensor(oracle, dtype=torch.float32)
 
                 self.samples.append({"x": x, "y": y, "oracle": oracle_tensor})
+
+        if not self.samples:
+            raise ValueError("artifact family dataset is empty")
+        if self.n_classes <= 0:
+            self.n_classes = max(int(sample["y"].item()) for sample in self.samples) + 1
 
     def __len__(self) -> int:
         return len(self.samples)
