@@ -38,6 +38,12 @@ The project is intentionally split into separate layers:
 - evaluation
 - tooling
 
+The project also now has a monorepo-level split:
+
+- Go is the deterministic symbolic core
+- Python `ml/` will be the statistical learning and assembly layer
+- shared artifacts are the contract between them
+
 Do not collapse these layers together casually.
 
 ## Raw Parser Rules
@@ -136,6 +142,39 @@ Normalization belongs after expansion.
 - Normalize raw EML AST, not concept definitions.
 - Keep normalization separate from parsing.
 - Keep normalization separate from concept registration.
+- Use normalization for hygiene, controlled comparison, and conservative dedupe.
+- Do not treat normalization as the only definition of identity.
+- Preserve room for later equivalence analysis between structurally different trees.
+
+## Search And Equivalence Rules
+
+Search is now only one consumer of the symbolic core.
+
+- Do not assume top-1 exact tree recovery is the only meaningful output.
+- Prefer work that supports synthetic datasets, equivalence families, snippet discovery, and partial assembly.
+- Treat equivalence analysis as a distinct stage from raw candidate generation.
+- Avoid premature normalization that would erase interesting combinatoric structure before it can be studied.
+
+## Monorepo Rules
+
+The Go side should own:
+
+- symbolic semantics,
+- parser and AST,
+- concept expansion,
+- evaluation,
+- synthetic data generation,
+- equivalence-family generation,
+- experiment artifacts.
+
+The Python `ml/` side should own:
+
+- model training,
+- snippet ranking or generation,
+- equivalence-aware learning,
+- assembly experiments.
+
+Do not duplicate symbolic semantics in Python when the Go core can generate the needed artifact deterministically.
 
 ## Long-Term Direction
 
@@ -147,4 +186,5 @@ That means future work should continue to preserve:
 - a reusable concept dictionary,
 - expansion to executable raw trees,
 - measurable and normalizable raw expressions,
-- a clean path toward symbolic regression and later proof-oriented workflows.
+- a clean path toward symbolic regression and later proof-oriented workflows,
+- and a clean path toward equivalence-aware ML over synthetic corpora and partial laws.

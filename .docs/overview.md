@@ -4,12 +4,18 @@
 
 `eml-parser` starts as a Go project for parsing and representing EML expressions under full project control. The parser remains intentionally narrow: it only accepts the atomic EML language from the paper. Mathematical richness is introduced above that layer through a recursive dictionary of named concepts that expand down to raw EML trees.
 
+The project should now be understood as a monorepo in spirit:
+
+- the Go portion is the deterministic symbolic core,
+- a future Python `ml/` subproject is the statistical learning and assembly layer,
+- and shared experiment artifacts connect the two.
+
 The broader motivation comes from two linked ideas:
 
 - EML offers a uniform binary-tree representation for elementary functions.
 - Code-oriented AI systems work best when they can generate structures, run verifiers, inspect failures, and repair them iteratively.
 
-Together, those suggest a workflow where mathematical expressions can be treated more like programs: expanded from reusable concept blocks, normalized, evaluated, searched, transformed, and eventually verified.
+Together, those suggest a workflow where mathematical expressions can be treated more like programs: expanded from reusable concept blocks, evaluated, searched, transformed, grouped into equivalence families, and eventually verified.
 
 ## Why EML Matters
 
@@ -18,6 +24,8 @@ The EML paper argues that a single binary operator plus a distinguished constant
 Instead of a heterogeneous grammar with many unrelated operators, EML expressions can be represented as binary trees of one operator applied repeatedly to terminals and intermediate results. That makes EML a plausible substrate for:
 
 - symbolic regression over a complete expression family,
+- equivalence-aware snippet discovery over large datasets,
+- compositional assembly from partial laws,
 - compiler-style normalization and rewriting,
 - interchangeable evaluation backends,
 - eventual export into proof-oriented systems such as Lean.
@@ -28,13 +36,14 @@ This project treats EML first as a language and IR problem: define the atomic sy
 
 The larger system this parser could support is a code-oriented mathematical pipeline:
 
-1. infer candidate expressions from data or search,
+1. infer candidate EML snippets from data or search,
 2. represent them in a uniform EML tree form,
-3. simplify or normalize them,
-4. evaluate them with increasingly strict numeric backends,
-5. translate them into a formal environment for proof or verification.
+3. compare them inside equivalence neighborhoods rather than as single isolated trees,
+4. attempt larger assemblies from compatible partial laws,
+5. evaluate them with increasingly strict numeric backends,
+6. translate them into a formal environment for proof or verification.
 
-In that model, symbolic regression is closer to constrained program synthesis than to ad hoc formula guessing. Lean or another formal system then becomes the equivalent of a type checker or proof verifier. The raw parser and AST are the foundation for that workflow, but they are not the place where higher-level mathematical concepts live.
+In that model, symbolic regression is closer to constrained program synthesis than to ad hoc formula guessing. The important unit is not always a single globally correct tree. It may be a family of interchangeable local trees that explain part of a dataset and can later be assembled into larger explanations. Lean or another formal system then becomes the equivalent of a type checker or proof verifier. The raw parser and AST are the foundation for that workflow, but they are not the place where higher-level mathematical concepts live.
 
 ## Current Project Priority
 
@@ -51,10 +60,19 @@ That means current work should prioritize:
 
 - experiment validity,
 - reproducibility,
-- interpretability of search behavior,
+- interpretability of equivalence behavior and search behavior,
 - and credible oracle-controlled evaluation.
 
 General-purpose tool polish is still useful, but it is downstream of proving that the direction is worth pursuing.
+
+The immediate research pivot is:
+
+- synthetic datasets generated from known raw EML trees and known concept expansions,
+- paired or grouped EML trees that produce the same outputs,
+- partial-law discovery rather than only whole-formula recovery,
+- and a two-stage workflow:
+  - data to candidate trees or snippets,
+  - candidate trees or snippets to equivalence classes and larger assemblies.
 
 ## Immediate Goal
 
@@ -67,6 +85,11 @@ The first concrete target for `eml-parser` is a parser foundation in Go:
 - clear semantics around precision and branch behavior.
 
 This is intentionally narrower than "build symbolic regression" or "integrate Lean". Those remain future consumers of the same internal representation.
+
+The next substantial layer above the Go core is no longer just "better search". It is a monorepo split:
+
+- Go for parsing, symbolic structures, equivalence-family generation, and synthetic corpus generation,
+- Python for ML experiments over those corpora, especially snippet discovery, equivalence-aware learning, and assembly experiments.
 
 ## Architectural Split
 
@@ -153,6 +176,35 @@ The expansion engine is the bridge between the mathematical dictionary and the p
 - concept expressions are human-manageable reusable blocks,
 - expanded expressions are raw EML trees suitable for execution and storage.
 
+### Monorepo Split
+
+The project should now evolve as a monorepo with a narrow interface between symbolic generation and ML experimentation.
+
+The Go side should own:
+
+- raw EML parsing and AST,
+- concept expansion,
+- evaluation backends,
+- normalization used only for hygiene and controlled comparison,
+- synthetic dataset generation,
+- equivalence-family generation,
+- experiment artifact generation.
+
+The Python `ml/` side should own:
+
+- model training,
+- snippet ranking or generation,
+- equivalence-aware learning objectives,
+- assembly experiments over partial trees,
+- evaluation against shared experiment artifacts generated by Go.
+
+The interface between them should be artifact-driven rather than ad hoc:
+
+- JSON specs,
+- generated datasets,
+- equivalence-family corpora,
+- result artifacts.
+
 ### Evaluation Backends
 
 Evaluation should not be hard-wired to one numeric representation. The project should define an evaluator interface that allows multiple backends with identical raw-AST traversal and explicit semantics.
@@ -180,6 +232,8 @@ The design assumption for this project is:
 - use higher precision for anything trusted,
 - make precision a configurable policy rather than an accidental implementation detail.
 
+One consequence is that approximate numeric agreement is not identity. This matters even more once the project studies families of different trees that fit the same sampled data.
+
 Go's `math/big` package covers arbitrary-precision real arithmetic, but not a complete high-precision transcendental stack. That means the evaluator layer must stay pluggable. The parser and AST should not assume a specific final numeric engine.
 
 ## Non-Goals for V1
@@ -190,7 +244,8 @@ Version 1 of this project does not aim to deliver:
 - Lean integration,
 - theorem proving features,
 - a final choice of arbitrary-precision transcendental library,
-- a complete optimizer or search framework.
+- a complete optimizer or search framework,
+- a finished ML training stack.
 
 V1 is about building the language foundation cleanly enough that these remain possible.
 
@@ -204,6 +259,8 @@ The next implementation steps are:
 4. Define a small initial standard library of grounded concept mappings.
 5. Add normalization and reuse around expanded raw EML trees.
 6. Continue improving high-precision evaluation without coupling the parser to any richer surface syntax.
+7. Generate synthetic datasets and equivalence families from the Go core.
+8. Feed those artifacts into a future Python ML layer aimed at snippet discovery and compositional assembly.
 
 Current status:
 
@@ -221,11 +278,11 @@ Current status:
 - the concept dictionary now includes a first reusable standard library spanning constants, arithmetic, `sqrt`, hyperbolic functions, and basic trigonometric functions, all defined compositionally and expanded to raw EML on demand.
 - tooling should now focus on introspecting that dictionary: listing concepts, showing definitions, tracing dependencies, and emitting symbolic raw-EML expansions without changing the raw parser.
 - raw EML normalization should now reduce obviously redundant expanded forms after concept expansion, without changing the concept dictionary or parser grammar.
+- normalization should now be treated as a controlled tool for hygiene and comparison, not as the only definition of identity.
 - expansion caching should now avoid repeated recursive work for named concepts while staying internal to the registry layer.
-- search-space preparation should now add bounded raw-tree construction, subtree replacement, mutation helpers, and deduplication by normalized canonical key without coupling back into concept expansion.
-- dataset and benchmark support should now provide reusable sample-set builders and named regression fixtures so future search loops can be compared against stable targets.
-- the first search skeleton should now use bounded enumeration plus existing scoring utilities to rank inspectable candidate lists against named fixtures before any more ambitious search strategy is added.
-- search diagnostics should now report generated counts, deduplication loss, normalization hits, evaluation rejects, score spread, and top-candidate summaries so search behavior is visible rather than opaque.
+- search-space preparation should now remain available as one experiment track, but it is no longer the only or highest-priority path.
+- dataset and benchmark support should now expand toward synthetic equivalence corpora, paired-tree datasets, and snippet-level training artifacts rather than only whole-formula oracle search.
+- the first search skeleton and diagnostics remain useful baselines, but they should now be treated as one consumer of the symbolic core rather than the project's primary destination.
 - the formalization bridge should now export normalized raw EML into a deterministic proof-friendly intermediate form with retained concept provenance where available, without coupling proof concerns back into the parser or concept registry.
 - oracle-controlled experiment methodology should now be fixed in `.docs/experiments.md` before larger empirical result sets are generated, so recovery classes and publishable claims are defined in advance rather than inferred later.
 - the experiment filesystem layout should now be fixed under `experiments/` so specs, datasets, results, and suite reports have predictable locations and naming before repeated runs begin producing artifacts.
@@ -237,6 +294,11 @@ Current status:
 - suite reporting should now be able to aggregate explicit result artifacts into one JSON summary and one Markdown summary under `experiments/reports/`, including recovery-class counts, target-family counts, diagnostic ranges, and top recovered expressions.
 - an initial oracle suite should now exist as committed experiment specs covering exact controls, a small nested composite control, and honest current-boundary failures such as additive and larger-library targets.
 - paper-readiness notes should now make explicit what the current suite can support as evidence, what it cannot yet support, and which threats to validity must be disclosed if the project is written up.
+- the next research layer should now focus on synthetic data plus EML combinatorics:
+  - multiple trees for the same law,
+  - local subtree substitutions,
+  - partial-law recovery,
+  - and later ML-based assembly over snippets rather than only top-1 global recovery.
 
 ## Defaults and Assumptions
 
