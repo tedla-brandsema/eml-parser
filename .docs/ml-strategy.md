@@ -169,3 +169,7 @@ At the current stage, the Go side now emits:
 The Python `ml/` path still consumes the simpler anchor artifacts until the
 later ML items migrate it first to grouped paired-equivalence datasets and then
 to richer snippet-level corpora.
+
+The snippet corpora are now also intended to seed the Go-side `search/maze`
+path explicitly, so snippet artifacts serve both ML-facing and symbolic
+partial-growth work.

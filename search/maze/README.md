@@ -26,3 +26,6 @@ the next maze step, after frontier growth is stable.
 
 Current whole-dataset fit and threshold behavior are default scorer and
 retention-policy choices, not the permanent identity of maze search.
+
+Maze can now also be seeded from curated snippet artifacts as an explicit
+anchor source. Automatic data-to-snippet matching is still deferred.

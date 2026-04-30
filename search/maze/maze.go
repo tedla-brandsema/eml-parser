@@ -19,8 +19,9 @@ const (
 )
 
 type Anchor struct {
-	Name string
-	Expr ast.Expr
+	Name       string
+	Expr       ast.Expr
+	Provenance *AnchorProvenance
 }
 
 type Frontier struct {
@@ -44,6 +45,7 @@ type ExpansionStep struct {
 
 type GrowthThread struct {
 	AnchorName  string
+	Provenance  *AnchorProvenance
 	Current     common.Candidate
 	Score       float64
 	ParentScore float64
@@ -55,6 +57,7 @@ type GrowthThread struct {
 
 type PartialResult struct {
 	AnchorName    string
+	Provenance    *AnchorProvenance
 	Candidate     common.Candidate
 	Score         float64
 	Reason        string
@@ -91,6 +94,7 @@ type CandidateScore struct {
 	Candidate  common.Candidate
 	Score      float64
 	AnchorName string
+	Provenance *AnchorProvenance
 	History    []ExpansionStep
 }
 
@@ -157,6 +161,7 @@ func MazeRealSearchWithPolicies(
 		threadFrontiers := openFrontiers(candidate.Original)
 		thread := GrowthThread{
 			AnchorName:  anchor.Name,
+			Provenance:  cloneAnchorProvenance(anchor.Provenance),
 			Current:     candidate,
 			Score:       scored.Primary,
 			ParentScore: scored.Primary,
@@ -175,6 +180,7 @@ func MazeRealSearchWithPolicies(
 			Candidate:  candidate,
 			Score:      scored.Primary,
 			AnchorName: anchor.Name,
+			Provenance: cloneAnchorProvenance(anchor.Provenance),
 		})
 	}
 
@@ -199,6 +205,7 @@ func MazeRealSearchWithPolicies(
 			if outcome.Decision != common.RetentionPrune && thread.Status != ThreadStatusRetainedPartial {
 				report.PartialResults = append(report.PartialResults, PartialResult{
 					AnchorName:    thread.AnchorName,
+					Provenance:    cloneAnchorProvenance(thread.Provenance),
 					Candidate:     thread.Current,
 					Score:         thread.Score,
 					Reason:        "dead_end",
@@ -227,6 +234,7 @@ func MazeRealSearchWithPolicies(
 				Candidate:  child.Current,
 				Score:      child.Score,
 				AnchorName: child.AnchorName,
+				Provenance: cloneAnchorProvenance(child.Provenance),
 				History:    append([]ExpansionStep(nil), child.History...),
 			})
 			report.Diagnostics.MaxDepthReached = max(report.Diagnostics.MaxDepthReached, child.Current.Stats.TreeDepth)
@@ -339,6 +347,7 @@ func expandThread(
 					diagnostics.FrontierExpansionsAccepted++
 					children = append(children, GrowthThread{
 						AnchorName:  thread.AnchorName,
+						Provenance:  cloneAnchorProvenance(thread.Provenance),
 						Current:     candidate,
 						Score:       scored.Primary,
 						ParentScore: thread.Score,
@@ -350,6 +359,7 @@ func expandThread(
 					diagnostics.FrontierExpansionsRejected++
 					partials = append(partials, PartialResult{
 						AnchorName:    thread.AnchorName,
+						Provenance:    cloneAnchorProvenance(thread.Provenance),
 						Candidate:     candidate,
 						Score:         scored.Primary,
 						Reason:        outcome.Reason,
@@ -435,6 +445,14 @@ func cloneExpr(expr ast.Expr) ast.Expr {
 	default:
 		return nil
 	}
+}
+
+func cloneAnchorProvenance(in *AnchorProvenance) *AnchorProvenance {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	return &out
 }
 
 func max(a, b int) int {

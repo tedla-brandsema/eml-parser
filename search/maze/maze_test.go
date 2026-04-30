@@ -6,6 +6,7 @@ import (
 	"eml-parser/ast"
 	"eml-parser/concepts"
 	"eml-parser/eval"
+	"eml-parser/family"
 	"eml-parser/search/common"
 )
 
@@ -235,5 +236,92 @@ func TestMazeRealSearchStalledBranchBecomesPartial(t *testing.T) {
 	}
 	if !foundStalled {
 		t.Fatal("expected a stalled partial result")
+	}
+}
+
+func TestAnchorsFromSnippetArtifactPreservesProvenance(t *testing.T) {
+	artifact, err := family.GenerateSnippetDataset(
+		family.CuratedSnippetTargets()[0],
+		concepts.StandardLibrary(),
+		[]family.SamplingDomain{
+			{
+				DomainID: "default",
+				Sampling: family.SamplingSpec{
+					Variable:    "x",
+					Start:       0.05,
+					Stop:        0.25,
+					PointCount:  4,
+					SampleCount: 1,
+					Seed:        0,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateSnippetDataset returned error: %v", err)
+	}
+
+	anchors, err := AnchorsFromSnippetArtifact(artifact, artifact.Snippets[0].SnippetID)
+	if err != nil {
+		t.Fatalf("AnchorsFromSnippetArtifact returned error: %v", err)
+	}
+	if len(anchors) != 1 {
+		t.Fatalf("expected one anchor, got %d", len(anchors))
+	}
+	if anchors[0].Provenance == nil {
+		t.Fatal("expected snippet provenance")
+	}
+	if anchors[0].Provenance.SourceKind != AnchorSourceSnippet {
+		t.Fatalf("unexpected source kind: %q", anchors[0].Provenance.SourceKind)
+	}
+	if anchors[0].Provenance.SnippetID != artifact.Snippets[0].SnippetID {
+		t.Fatalf("unexpected snippet id: %q", anchors[0].Provenance.SnippetID)
+	}
+}
+
+func TestMazeRealSearchFromSnippetArtifact(t *testing.T) {
+	artifact, err := family.GenerateSnippetDataset(
+		family.CuratedSnippetTargets()[0],
+		concepts.StandardLibrary(),
+		[]family.SamplingDomain{
+			{
+				DomainID: "default",
+				Sampling: family.SamplingSpec{
+					Variable:    "x",
+					Start:       0.05,
+					Stop:        0.25,
+					PointCount:  4,
+					SampleCount: 1,
+					Seed:        0,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("GenerateSnippetDataset returned error: %v", err)
+	}
+
+	report, err := MazeRealSearchFromSnippetArtifact(
+		artifact,
+		eval.Complex128Backend{},
+		[]string{artifact.Snippets[0].SnippetID},
+		MazeOptions{
+			Bounds:          common.Bounds{MaxDepth: 5, MaxNodes: 9},
+			TopN:            5,
+			AcceptThreshold: 10.0,
+			RetainThreshold: 10.0,
+		},
+	)
+	if err != nil {
+		t.Fatalf("MazeRealSearchFromSnippetArtifact returned error: %v", err)
+	}
+	if len(report.BestCandidates) == 0 {
+		t.Fatal("expected snippet-seeded maze candidates")
+	}
+	if report.BestCandidates[0].Provenance == nil {
+		t.Fatal("expected provenance on best candidate")
+	}
+	if report.BestCandidates[0].Provenance.SourceKind != AnchorSourceSnippet {
+		t.Fatalf("unexpected source kind: %q", report.BestCandidates[0].Provenance.SourceKind)
 	}
 }
