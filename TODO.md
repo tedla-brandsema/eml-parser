@@ -698,6 +698,8 @@ Reason:
 
 ### 33. Monorepo Layout And Contracts
 
+Status: implemented
+
 Codify the repository as a monorepo with a stable boundary between symbolic generation and ML experimentation.
 
 Targets:

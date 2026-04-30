@@ -176,6 +176,13 @@ The Python `ml/` side should own:
 
 Do not duplicate symbolic semantics in Python when the Go core can generate the needed artifact deterministically.
 
+Directory ownership should stay explicit:
+
+- Go code remains at repo root
+- `experiments/` is for oracle experiment inputs and outputs
+- `artifacts/` is for shared Go-generated corpora consumed by `ml/`
+- `ml/` is for Python-side learning and assembly work
+
 ## Long-Term Direction
 
 The long-term objective is not only evaluation, but generation and discovery of EML trees from data.

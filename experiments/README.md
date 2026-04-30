@@ -3,6 +3,9 @@
 This directory holds the on-disk layout for oracle-controlled symbolic-regression
 experiments.
 
+It is intentionally narrower than the repository's general-purpose shared corpus
+area. Shared ML-facing corpora belong under `artifacts/`, not here.
+
 The layout is intentionally simple and deterministic so experiment runs can be
 reproduced, audited, and summarized without inventing new paths or file naming
 rules each time.
@@ -61,3 +64,21 @@ Use deterministic naming:
 
 The experiment id or suite id should be enough to locate the corresponding
 artifacts across the full directory tree.
+
+## Relationship To `artifacts/`
+
+Use `experiments/` for:
+
+- source-of-truth oracle experiment specs,
+- generated oracle datasets,
+- generated oracle results,
+- generated oracle suite summaries.
+
+Use `artifacts/` for:
+
+- shared equivalence-family corpora,
+- shared snippet and partial-law corpora,
+- other Go-generated datasets intended for the future `ml/` subproject.
+
+The formal repository-level contract is documented in
+`.docs/artifact-contract.md`.

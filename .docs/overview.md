@@ -6,9 +6,10 @@
 
 The project should now be understood as a monorepo in spirit:
 
-- the Go portion is the deterministic symbolic core,
+- the Go portion is the deterministic symbolic core and remains at repo root,
 - a future Python `ml/` subproject is the statistical learning and assembly layer,
-- and shared experiment artifacts connect the two.
+- oracle experiment artifacts live under `experiments/`,
+- and shared ML-facing corpora live under `artifacts/`.
 
 The broader motivation comes from two linked ideas:
 
@@ -90,6 +91,7 @@ The next substantial layer above the Go core is no longer just "better search". 
 
 - Go for parsing, symbolic structures, equivalence-family generation, and synthetic corpus generation,
 - Python for ML experiments over those corpora, especially snippet discovery, equivalence-aware learning, and assembly experiments.
+- the Go codebase remains at repo root rather than moving into a `/go` subtree.
 
 ## Architectural Split
 
@@ -201,9 +203,16 @@ The Python `ml/` side should own:
 The interface between them should be artifact-driven rather than ad hoc:
 
 - JSON specs,
-- generated datasets,
+- generated experiment datasets,
 - equivalence-family corpora,
+- snippet corpora,
 - result artifacts.
+
+The current repository-level split is:
+
+- `experiments/` for oracle experiment inputs and run artifacts,
+- `artifacts/` for shared Go-generated corpora intended for `ml/`,
+- `ml/` for Python-side training and evaluation code.
 
 ### Evaluation Backends
 
@@ -286,6 +295,7 @@ Current status:
 - the formalization bridge should now export normalized raw EML into a deterministic proof-friendly intermediate form with retained concept provenance where available, without coupling proof concerns back into the parser or concept registry.
 - oracle-controlled experiment methodology should now be fixed in `.docs/experiments.md` before larger empirical result sets are generated, so recovery classes and publishable claims are defined in advance rather than inferred later.
 - the experiment filesystem layout should now be fixed under `experiments/` so specs, datasets, results, and suite reports have predictable locations and naming before repeated runs begin producing artifacts.
+- a separate shared `artifacts/` area should now exist for ML-facing corpora so oracle experiment outputs are not overloaded as the only cross-language interface.
 - the experiment schema should now be fixed in code and in example JSON specs so future runners load declarative oracle experiments rather than embedding them implicitly in tests or ad hoc scripts.
 - the oracle dataset generator should now be able to materialize deterministic real-valued datasets from concept or raw targets into `experiments/datasets/`, using the current evaluation stack and failing loudly on non-real outputs.
 - the oracle search harness should now be able to load one experiment spec, generate or load its dataset, run the current enumerative real search, and persist a machine-readable result artifact in `experiments/results/`.

@@ -22,6 +22,20 @@ bin/
 dist/
 build/
 
+# Shared generated artifact areas
+artifacts/equivalence/*
+!artifacts/equivalence/.gitkeep
+artifacts/snippets/*
+!artifacts/snippets/.gitkeep
+
+# Python/ML local state
+ml/.venv/
+ml/venv/
+ml/__pycache__/
+ml/.pytest_cache/
+ml/.mypy_cache/
+ml/.ipynb_checkpoints/
+
 # Editor and OS files
 .DS_Store
 Thumbs.db
