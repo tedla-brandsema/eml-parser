@@ -815,7 +815,9 @@ Reason:
 
 Status: partially implemented — full-law / snippet / partial-coverage recovery
 classes and their claim discipline are defined in `.docs/experiments.md`;
-equivalence-family recovery and assembly-oriented criteria remain open.
+equivalence-family recovery and assembly-oriented criteria remain open and are
+now scoped by the layered model in `.docs/partial-recovery-strategy.md`
+(items 44-50).
 
 Extend the experiment methodology beyond top-1 whole-formula recovery.
 
@@ -871,6 +873,11 @@ Reason:
 
 ### 42. Assembly-Oriented Evaluation Suite
 
+Status: superseded in approach — assembly is now defined over layers and
+junctions rather than bare snippet candidates; see
+`.docs/partial-recovery-strategy.md` and items 44-50, which refine this item
+into a concrete sequence. The intent below still stands.
+
 Evaluate whether recovered snippets can participate in larger coherent constructions.
 
 Targets:
@@ -898,6 +905,174 @@ Targets:
 Reason:
 
 - search still matters, but it should now serve the broader combinatorics and ML agenda rather than dominate it
+
+## Partial Recovery And Layered Assembly Sequence
+
+This sequence implements the layered model defined in
+`.docs/partial-recovery-strategy.md`: anchors spawn layers, layers grow to a
+measured natural end, and the structure of interest is the geometry between
+layers — junctions, overlaps, and disagreements.
+
+### 44. Partial Recovery Strategy Doc
+
+Status: implemented
+
+Codify the strategic bet on partial recovery and the layered model.
+
+Targets:
+
+- add `.docs/partial-recovery-strategy.md`
+- define the layer as the unit of partial explanation
+- define the three junction relations: agreement, complementarity, disagreement
+- define the claim discipline for layers, junctions, and assembly
+- state that multi-window coverage is a prerequisite, not an optimization
+
+Reason:
+
+- `.docs` is the grounding for the whole repo; a strategic pivot that exists
+  only in conversation or commit messages is not codified
+
+### 45. Multi-Window Coverage Scoring
+
+Replace single-best-window scoring with window-set scoring per candidate.
+
+Targets:
+
+- score each candidate as a set of disjoint explained windows, each with its
+  own local error, instead of one best contiguous window
+- expose the full per-sample error profile so boundary detection (item 47)
+  has raw material
+- keep the existing single-window scorer available as a baseline mode
+- extend maze result artifacts with per-candidate window sets
+- add oracle-controlled tests where the target law genuinely holds in two
+  disjoint regions and single-window scoring provably under-reports it
+
+Constraints:
+
+- window sets must be deterministic and bounded (declared minimum window
+  size, declared maximum window count)
+- scoring changes must not alter the committed whole-formula oracle suite
+
+Reason:
+
+- usefulness does not live in one best window: a law holding in two disjoint
+  regions is currently unrepresentable, layer extents are truncated, and
+  junction analysis would systematically miss touchpoints
+- this is the single blocking gap for everything below
+
+### 46. Layer Artifact And Extraction
+
+Make the layer a first-class machine-readable artifact.
+
+Targets:
+
+- define a layer artifact: anchor provenance, candidate expression, explained
+  window set, error profile, and boundaries
+- emit layer artifacts from maze experiment runs alongside existing results
+- keep the format consistent with the existing artifact contract so the
+  Python `ml/` side can consume layers directly
+
+Reason:
+
+- junction analysis and assembly operate on layers, not on raw candidate
+  lists; the unit of analysis needs a stable on-disk form first
+
+### 47. Layer Boundary Detection
+
+Measure where a layer naturally ends instead of only configuring it.
+
+Targets:
+
+- detect boundaries from the per-sample error profile (error inflection),
+  not only from declared accept/retain thresholds
+- record measured boundaries in layer artifacts as findings
+- compare threshold-stopped against measured-stopped extents on the
+  committed maze oracle suite
+
+Constraints:
+
+- keep threshold-based stopping as the declared, reproducible baseline;
+  measured boundaries extend it rather than replace it
+
+Reason:
+
+- where a law stops holding is itself structure in the data and must be
+  recorded, not discarded
+
+### 48. Pairwise Junction Analysis
+
+Classify the relations between layers where they touch and overlap.
+
+Targets:
+
+- implement pairwise junction classification over layer artifacts:
+  - agreement: behaviorally interchangeable on the overlap within declared
+    tolerance
+  - complementarity: adjacent or lightly overlapping windows with compatible
+    values at the seam
+  - disagreement: both fit the shared region, structurally and behaviorally
+    different elsewhere
+- record junction artifacts with windows, tolerances, and both layers'
+  anchor provenance
+- build an oracle-controlled junction suite with constructed targets whose
+  junction relations are known in advance
+
+Constraints:
+
+- pairwise only in this item; no k-way assembly yet
+- all tolerances declared in specs, never implicit
+
+Reason:
+
+- the geometry between layers is the actual output of the layered model, and
+  it needs the same oracle-controlled discipline as recovery classes
+
+### 49. Observed Regional Equivalence Corpus
+
+Turn agreement junctions into equivalence-family training data.
+
+Targets:
+
+- emit agreement junctions as equivalence-family artifacts with a new
+  relation type for observed regional equivalence, carrying windows,
+  tolerances, and anchor provenance
+- keep observed relations clearly distinguished from declared-by-construction
+  relations in the corpus format
+- wire the new corpus into the existing artifact contract consumed by
+  `ml/` and the `family_match` task
+
+Reason:
+
+- layer overlaps generate equivalence candidates from data rather than by
+  construction — exactly the equivalence-aware exposure the ML strategy
+  calls for, produced as a byproduct of partial recovery
+
+### 50. Bounded Assembly Experiments
+
+Evaluate assemblies of complementary layers under explicit bounds.
+
+Targets:
+
+- assemble candidate explanations from complementarity junctions under
+  declared bounds: maximum layer count, declared seam tolerances,
+  deduplication by canonical key
+- define assembly outcome classes analogous to recovery classes; an
+  assembled patchwork is never classified as a law and never promotes into
+  whole-law recovery classes
+- preserve useful partial assemblies when full assembly fails
+- add an oracle-controlled assembly suite with positive, negative, and
+  stretch controls
+
+Constraints:
+
+- combinatorics stay bounded and declared; unbounded patchwork search is out
+  of scope by strategy
+
+Reason:
+
+- this completes the layered model: layers grow, junctions classify, and
+  bounded assembly tests whether the pieces add up to something larger —
+  with honest classes when they do not
 
 ## Architectural Rules
 

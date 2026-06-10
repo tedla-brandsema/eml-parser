@@ -127,6 +127,11 @@ This is the intended human-AI collaboration model:
 - the system proposes local laws and compatible fragments,
 - humans inspect, reinterpret, and bridge remaining gaps.
 
+The layered model that operationalizes this — anchors spawning layers,
+measured layer boundaries, junction relations between layers, and overlap
+agreement as a source of observed equivalence data — is defined in
+`.docs/partial-recovery-strategy.md`.
+
 ## Equivalence-Aware Exposure
 
 The future ML layer should be exposed deliberately to training data in which:

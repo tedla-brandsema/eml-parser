@@ -145,7 +145,9 @@ This ordering prevents numeric closeness from masking a structural result.
 
 Maze-mode experiments (`search.mode = "maze_real"`) study fractional recovery:
 which labeled pieces of a target law survive search, even when the whole law
-is out of reach. They use a separate, mutually exclusive class set:
+is out of reach. The strategic rationale and the layered model these classes
+serve are defined in `.docs/partial-recovery-strategy.md`. They use a
+separate, mutually exclusive class set:
 
 - `full_law_recovery`
 - `snippet_recovery`
