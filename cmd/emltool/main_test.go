@@ -540,7 +540,7 @@ func TestRunExperiment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.Getwd failed: %v", err)
 	}
-	if err := os.Chdir("/home/ted/projects/go/eml-parser"); err != nil {
+	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
 		t.Fatalf("os.Chdir failed: %v", err)
 	}
 	defer func() {
@@ -588,7 +588,7 @@ func TestRunReportSuite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.Getwd failed: %v", err)
 	}
-	if err := os.Chdir("/home/ted/projects/go/eml-parser"); err != nil {
+	if err := os.Chdir(filepath.Join("..", "..")); err != nil {
 		t.Fatalf("os.Chdir failed: %v", err)
 	}
 	defer func() {

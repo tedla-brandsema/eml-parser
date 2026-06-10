@@ -6,7 +6,7 @@ import (
 )
 
 func TestInitialOracleSuiteSpecsMatchExpectedRecovery(t *testing.T) {
-	projectRoot := "/home/ted/projects/go/eml-parser"
+	projectRoot := ".."
 	specPaths := []string{
 		filepath.Join(projectRoot, "experiments", "specs", "oracle_exp_exact.json"),
 		filepath.Join(projectRoot, "experiments", "specs", "oracle_log_exact.json"),

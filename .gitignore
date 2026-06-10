@@ -1,3 +1,9 @@
+# Delve debug binaries
+__debug_bin*
+
+# graphify knowledge graph output
+graphify-out/
+
 # Go build artifacts
 *.exe
 *.exe~
