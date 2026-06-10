@@ -934,6 +934,14 @@ Reason:
 
 ### 45. Multi-Window Coverage Scoring
 
+Status: implemented — `RealWindowSetScorer` scores candidates as bounded sets
+of disjoint explained windows (declared point tolerance, minimum window size,
+maximum window count), `RealErrorProfile` exposes the per-sample error profile
+for item 47, the `window_set` coverage mode is wired through maze specs and
+result artifacts, and `maze_oracle_sin_two_windows` plus search-package tests
+prove the single-window under-reporting case. Single-window scoring remains
+the default baseline mode.
+
 Replace single-best-window scoring with window-set scoring per candidate.
 
 Targets:

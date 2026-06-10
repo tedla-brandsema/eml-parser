@@ -1,0 +1,43 @@
+{
+  "id": "maze_oracle_sin_two_windows",
+  "description": "Stretch control: with window-set coverage scoring, the constant-1 anchor explains sin(x) near both crests of the sampled domain - two disjoint windows that single-best-window scoring cannot represent together.",
+  "target": {
+    "kind": "concept",
+    "concept": "sin"
+  },
+  "dataset": {
+    "mode": "real_grid",
+    "variable": "x",
+    "grid": {
+      "start": 1.2,
+      "stop": 8.2,
+      "count": 36
+    }
+  },
+  "search": {
+    "mode": "maze_real",
+    "bounds": {
+      "max_depth": 2,
+      "max_nodes": 3
+    },
+    "top_n": 5,
+    "maze": {
+      "snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+      "snippet_ids": ["raw_exp3_one_leaf"],
+      "accept_threshold": 1.0,
+      "retain_threshold": 2.0,
+      "coverage": {
+        "mode": "window_set",
+        "min_window_size": 3,
+        "coverage_weight": 0.25,
+        "point_tolerance": 0.02,
+        "max_window_count": 2
+      }
+    }
+  },
+  "recovery": {
+    "expected_class": "partial_coverage_recovery",
+    "min_coverage_ratio": 0.25,
+    "max_local_error": 0.02
+  }
+}

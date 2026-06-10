@@ -112,18 +112,29 @@ type DiagnosticsArtifact struct {
 }
 
 // CandidateResult records one ranked candidate from a harness run. The
-// coverage and anchor fields are populated only by maze-mode runs.
+// coverage and anchor fields are populated only by maze-mode runs; Windows is
+// populated only under window-set coverage scoring.
 type CandidateResult struct {
-	Rank           int     `json:"rank"`
-	Score          string  `json:"score"`
-	CanonicalKey   string  `json:"canonical_key"`
-	NormalizedExpr string  `json:"normalized_expr"`
-	AnchorName     string  `json:"anchor_name,omitempty"`
-	CoverageRatio  float64 `json:"coverage_ratio,omitempty"`
-	CoveredCount   int     `json:"covered_count,omitempty"`
-	WindowStart    int     `json:"window_start,omitempty"`
-	WindowEnd      int     `json:"window_end,omitempty"`
-	LocalError     string  `json:"local_error,omitempty"`
+	Rank           int              `json:"rank"`
+	Score          string           `json:"score"`
+	CanonicalKey   string           `json:"canonical_key"`
+	NormalizedExpr string           `json:"normalized_expr"`
+	AnchorName     string           `json:"anchor_name,omitempty"`
+	CoverageRatio  float64          `json:"coverage_ratio,omitempty"`
+	CoveredCount   int              `json:"covered_count,omitempty"`
+	WindowStart    int              `json:"window_start,omitempty"`
+	WindowEnd      int              `json:"window_end,omitempty"`
+	LocalError     string           `json:"local_error,omitempty"`
+	Windows        []WindowArtifact `json:"windows,omitempty"`
+}
+
+// WindowArtifact records one explained window of a window-set scored
+// candidate over the sorted sample trace.
+type WindowArtifact struct {
+	Start        int    `json:"start"`
+	End          int    `json:"end"`
+	CoveredCount int    `json:"covered_count"`
+	LocalError   string `json:"local_error"`
 }
 
 // LoadDataset reads a previously generated dataset artifact from disk.
@@ -233,14 +244,22 @@ func runMazeFromDataset(projectRoot string, spec Spec, dataset DatasetArtifact) 
 	}
 
 	var report maze.MazeReport
-	if coverage := spec.Search.Maze.Coverage; coverage != nil {
+	switch coverage := spec.Search.Maze.Coverage; {
+	case coverage == nil:
+		report, err = maze.MazeRealSearch(fixture, eval.Complex128Backend{}, anchors, options)
+	case coverage.Mode == CoverageModeWindowSet:
+		report, err = maze.MazeRealSearchWindowSet(fixture, eval.Complex128Backend{}, anchors, options, maze.WindowSetOptions{
+			PointTolerance: coverage.PointTolerance,
+			MinWindowSize:  coverage.MinWindowSize,
+			MaxWindowCount: coverage.MaxWindowCount,
+			CoverageWeight: coverage.CoverageWeight,
+		})
+	default:
 		report, err = maze.MazeRealSearchPartialCoverage(fixture, eval.Complex128Backend{}, anchors, options, maze.CoverageOptions{
 			MinWindowSize:  coverage.MinWindowSize,
 			MaxWindowSize:  coverage.MaxWindowSize,
 			CoverageWeight: coverage.CoverageWeight,
 		})
-	} else {
-		report, err = maze.MazeRealSearch(fixture, eval.Complex128Backend{}, anchors, options)
 	}
 	if err != nil {
 		return maze.MazeReport{}, nil, err
@@ -249,15 +268,17 @@ func runMazeFromDataset(projectRoot string, spec Spec, dataset DatasetArtifact) 
 }
 
 // ensureSnippetArtifact loads the referenced snippet artifact, regenerating
-// the curated snippet corpus once if the artifact is missing on disk.
+// the curated snippet corpus once and retrying if the artifact is missing or
+// unreadable. Curated generation is deterministic, so regeneration is always
+// safe.
 func ensureSnippetArtifact(projectRoot, relativePath string) (family.SnippetDatasetArtifact, error) {
 	path := filepath.Join(projectRoot, relativePath)
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		if _, _, genErr := family.WriteCuratedSnippetDatasets(projectRoot); genErr != nil {
-			return family.SnippetDatasetArtifact{}, fmt.Errorf("regenerate curated snippet datasets: %w", genErr)
-		}
-	} else if err != nil {
-		return family.SnippetDatasetArtifact{}, fmt.Errorf("stat snippet artifact: %w", err)
+	artifact, err := maze.LoadSnippetArtifact(path)
+	if err == nil {
+		return artifact, nil
+	}
+	if _, _, genErr := family.WriteCuratedSnippetDatasets(projectRoot); genErr != nil {
+		return family.SnippetDatasetArtifact{}, fmt.Errorf("regenerate curated snippet datasets: %w", genErr)
 	}
 	return maze.LoadSnippetArtifact(path)
 }
@@ -348,6 +369,23 @@ func mazeCandidateResults(candidates []maze.CandidateScore) []CandidateResult {
 			WindowStart:    candidate.ScoreDetails.WindowStart,
 			WindowEnd:      candidate.ScoreDetails.WindowEnd,
 			LocalError:     formatScore(candidate.ScoreDetails.LocalError),
+			Windows:        windowArtifacts(candidate.ScoreDetails.Windows),
+		})
+	}
+	return out
+}
+
+func windowArtifacts(windows []search.CoverageWindow) []WindowArtifact {
+	if len(windows) == 0 {
+		return nil
+	}
+	out := make([]WindowArtifact, 0, len(windows))
+	for _, window := range windows {
+		out = append(out, WindowArtifact{
+			Start:        window.Start,
+			End:          window.End,
+			CoveredCount: window.CoveredCount,
+			LocalError:   formatScore(window.LocalError),
 		})
 	}
 	return out

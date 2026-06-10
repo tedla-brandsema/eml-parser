@@ -19,6 +19,10 @@ Included experiments:
 - `maze_oracle_sinh_partial_coverage.json`
   - partial-coverage stretch control: with coverage-aware scoring, `x` is
     recovered as a partial law for `sinh(x)` over the small-x region
+- `maze_oracle_sin_two_windows.json`
+  - window-set stretch control: the constant-1 anchor explains `sin(x)` near
+    both crests of the sampled domain — two disjoint windows that
+    single-best-window scoring cannot represent together
 - `maze_oracle_sigmoid_negative.json`
   - negative control: exponential anchors fail honestly against `sigmoid`
     under strict declared coverage criteria
@@ -31,6 +35,9 @@ Rationale:
   results when the whole law is out of reach
 - the coverage control shows fractional fits are classified by declared
   thresholds, not impressions
+- the window-set control shows disjoint explained regions are first-class:
+  the same anchor under single-window scoring would under-report half its
+  coverage
 - the negative control shows coverage-aware classification does not inflate
   weak fits into recoveries
 
@@ -45,10 +52,12 @@ Example:
 go run ./cmd/emltool run-experiment experiments/specs/maze_oracle_exp3_full_from_exp2.json
 go run ./cmd/emltool run-experiment experiments/specs/maze_oracle_exp3_snippet_from_exp1.json
 go run ./cmd/emltool run-experiment experiments/specs/maze_oracle_sinh_partial_coverage.json
+go run ./cmd/emltool run-experiment experiments/specs/maze_oracle_sin_two_windows.json
 go run ./cmd/emltool run-experiment experiments/specs/maze_oracle_sigmoid_negative.json
 go run ./cmd/emltool report-suite maze_oracle_suite \
   experiments/results/maze_oracle_exp3_full_from_exp2.json \
   experiments/results/maze_oracle_exp3_snippet_from_exp1.json \
   experiments/results/maze_oracle_sinh_partial_coverage.json \
+  experiments/results/maze_oracle_sin_two_windows.json \
   experiments/results/maze_oracle_sigmoid_negative.json
 ```

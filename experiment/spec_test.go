@@ -343,3 +343,98 @@ func TestParseSpecPartialCoverageRequiresCoverageScoring(t *testing.T) {
 		t.Fatalf("expected coverage scoring error, got %v", err)
 	}
 }
+
+func TestParseSpecWindowSetCoverage(t *testing.T) {
+	spec, err := ParseSpec([]byte(`{
+		"id": "window_set_smoke",
+		"description": "Window-set coverage parses with tolerance and count bound",
+		"target": {"kind": "concept", "concept": "sin"},
+		"dataset": {
+			"mode": "real_grid",
+			"variable": "x",
+			"grid": {"start": 1.2, "stop": 8.2, "count": 36}
+		},
+		"search": {
+			"mode": "maze_real",
+			"bounds": {"max_depth": 2, "max_nodes": 3},
+			"top_n": 5,
+			"maze": {
+				"snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+				"accept_threshold": 1.0,
+				"retain_threshold": 2.0,
+				"coverage": {
+					"mode": "window_set",
+					"min_window_size": 3,
+					"point_tolerance": 0.02,
+					"max_window_count": 2
+				}
+			}
+		},
+		"recovery": {
+			"expected_class": "partial_coverage_recovery",
+			"min_coverage_ratio": 0.25,
+			"max_local_error": 0.02
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("ParseSpec returned error: %v", err)
+	}
+	if spec.Search.Maze.Coverage.Mode != CoverageModeWindowSet {
+		t.Fatalf("unexpected coverage mode: %+v", spec.Search.Maze.Coverage)
+	}
+}
+
+func TestParseSpecWindowSetCoverageRequiresTolerance(t *testing.T) {
+	_, err := ParseSpec([]byte(`{
+		"id": "window_set_missing_tolerance",
+		"description": "Window-set coverage without point tolerance must fail",
+		"target": {"kind": "raw", "raw_eml": "x"},
+		"dataset": {"mode": "real_points", "variable": "x", "points": [0.1, 0.2, 0.3]},
+		"search": {
+			"mode": "maze_real",
+			"bounds": {"max_depth": 2, "max_nodes": 3},
+			"top_n": 3,
+			"maze": {
+				"snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+				"accept_threshold": 1.0,
+				"retain_threshold": 2.0,
+				"coverage": {
+					"mode": "window_set",
+					"min_window_size": 3,
+					"max_window_count": 2
+				}
+			}
+		},
+		"recovery": {"expected_class": "no_recovery"}
+	}`))
+	if err == nil || !strings.Contains(err.Error(), "requires positive point_tolerance") {
+		t.Fatalf("expected point_tolerance error, got %v", err)
+	}
+}
+
+func TestParseSpecSingleWindowCoverageRejectsWindowSetFields(t *testing.T) {
+	_, err := ParseSpec([]byte(`{
+		"id": "single_window_with_tolerance",
+		"description": "Single-window coverage with window-set fields must fail",
+		"target": {"kind": "raw", "raw_eml": "x"},
+		"dataset": {"mode": "real_points", "variable": "x", "points": [0.1, 0.2, 0.3]},
+		"search": {
+			"mode": "maze_real",
+			"bounds": {"max_depth": 2, "max_nodes": 3},
+			"top_n": 3,
+			"maze": {
+				"snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+				"accept_threshold": 1.0,
+				"retain_threshold": 2.0,
+				"coverage": {
+					"min_window_size": 3,
+					"point_tolerance": 0.02
+				}
+			}
+		},
+		"recovery": {"expected_class": "no_recovery"}
+	}`))
+	if err == nil || !strings.Contains(err.Error(), "must not set point_tolerance") {
+		t.Fatalf("expected single-window rejection error, got %v", err)
+	}
+}

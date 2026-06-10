@@ -41,6 +41,11 @@ func (t StaticTarget[T]) VariableNames() []string {
 // ScoreResult is the structured output from scoring one candidate against one
 // target. Extra fields can be added later for coverage-aware or ML-guided
 // search without changing algorithm identities.
+//
+// Windows is populated only by window-set scoring. When set, the aggregate
+// fields summarize the union of all windows: CoveredCount and CoverageRatio
+// cover the union, LocalError is the error over covered samples only, and
+// WindowStart/WindowEnd describe the first window for backward compatibility.
 type ScoreResult struct {
 	Primary          float64
 	Finite           bool
@@ -50,6 +55,16 @@ type ScoreResult struct {
 	CoverageRatio    float64
 	LocalError       float64
 	RawCoverageScore float64
+	Windows          []CoverageWindow
+}
+
+// CoverageWindow is one contiguous explained region of the sorted sample
+// trace: samples [Start, End) fit within the declared point tolerance.
+type CoverageWindow struct {
+	Start        int
+	End          int
+	CoveredCount int
+	LocalError   float64
 }
 
 type Scorer[T any] interface {
@@ -159,6 +174,160 @@ func (s RealPartialCoverageScorer) ScoreCandidate(candidate Candidate, backend e
 		return ScoreResult{Finite: false}, nil
 	}
 	return best, nil
+}
+
+// WindowSetOptions configures window-set scoring. A sample is explained when
+// its squared error is at or below PointTolerance; explained samples form
+// maximal contiguous windows, of which at most MaxWindowCount (largest first)
+// of at least MinWindowSize samples are kept.
+type WindowSetOptions struct {
+	PointTolerance float64
+	MinWindowSize  int
+	MaxWindowCount int
+	CoverageWeight float64
+}
+
+// RealWindowSetScorer scores a candidate as a set of disjoint explained
+// windows instead of one best contiguous window. A law that holds in two
+// separate regions of the domain is represented as two windows; usefulness
+// does not live in one best window.
+type RealWindowSetScorer struct {
+	Options WindowSetOptions
+}
+
+func (s RealWindowSetScorer) ScoreCandidate(candidate Candidate, backend eval.Backend[complex128], target SearchTarget[float64]) (ScoreResult, error) {
+	opts := normalizeWindowSetOptions(s.Options)
+	variables := target.VariableNames()
+	if len(variables) != 1 {
+		return ScoreResult{}, fmt.Errorf("window-set scorer requires exactly one variable, got %d", len(variables))
+	}
+	samples := sortedRealSamples(target.Samples(), variables[0])
+	n := len(samples)
+	if n < opts.MinWindowSize {
+		return ScoreResult{}, fmt.Errorf("window-set scorer requires at least %d samples, got %d", opts.MinWindowSize, n)
+	}
+
+	profile, err := RealErrorProfile(candidate, backend, samples, variables[0])
+	if err != nil {
+		return ScoreResult{}, err
+	}
+
+	windows := explainedWindows(profile, opts)
+	if len(windows) == 0 {
+		// No explained window: fall back to whole-trace error with zero
+		// coverage so retention policies, not the scorer, decide survival.
+		whole := meanProfileError(profile)
+		primary := whole + opts.CoverageWeight
+		return ScoreResult{
+			Primary:    primary,
+			Finite:     isFiniteScore(primary),
+			LocalError: whole,
+		}, nil
+	}
+
+	covered := 0
+	var coveredSSE float64
+	for _, window := range windows {
+		covered += window.CoveredCount
+		coveredSSE += window.LocalError * float64(window.CoveredCount)
+	}
+	localError := coveredSSE / float64(covered)
+	coverageRatio := float64(covered) / float64(n)
+	primary := localError + opts.CoverageWeight*(1.0-coverageRatio)
+	return ScoreResult{
+		Primary:          primary,
+		Finite:           isFiniteScore(primary),
+		WindowStart:      windows[0].Start,
+		WindowEnd:        windows[0].End,
+		CoveredCount:     covered,
+		CoverageRatio:    coverageRatio,
+		LocalError:       localError,
+		RawCoverageScore: coverageRatio,
+		Windows:          windows,
+	}, nil
+}
+
+// RealErrorProfile evaluates a candidate over sorted real samples and returns
+// the per-sample squared error. This is the raw material for window-set
+// scoring and for layer boundary detection.
+func RealErrorProfile(candidate Candidate, backend eval.Backend[complex128], samples []Sample[float64], variable string) ([]float64, error) {
+	profile := make([]float64, 0, len(samples))
+	for _, sample := range samples {
+		vars := map[string]complex128{
+			variable: complex(sample.Vars[variable], 0),
+		}
+		got, err := eval.EvaluateMap(candidate.Normalized, backend, vars)
+		if err != nil {
+			return nil, err
+		}
+		diff := real(got) - sample.Target
+		profile = append(profile, diff*diff)
+	}
+	return profile, nil
+}
+
+// explainedWindows extracts the maximal contiguous runs of the error profile
+// at or below the point tolerance, keeps runs of at least MinWindowSize, and
+// retains at most MaxWindowCount of them (largest first, then lowest error,
+// then leftmost), returned in trace order.
+func explainedWindows(profile []float64, opts WindowSetOptions) []CoverageWindow {
+	runs := make([]CoverageWindow, 0)
+	start := -1
+	for i := 0; i <= len(profile); i++ {
+		explained := i < len(profile) && isFiniteScore(profile[i]) && profile[i] <= opts.PointTolerance
+		if explained {
+			if start < 0 {
+				start = i
+			}
+			continue
+		}
+		if start >= 0 {
+			if i-start >= opts.MinWindowSize {
+				runs = append(runs, CoverageWindow{
+					Start:        start,
+					End:          i,
+					CoveredCount: i - start,
+					LocalError:   meanProfileError(profile[start:i]),
+				})
+			}
+			start = -1
+		}
+	}
+	if len(runs) > opts.MaxWindowCount {
+		sort.Slice(runs, func(i, j int) bool {
+			if runs[i].CoveredCount == runs[j].CoveredCount {
+				if runs[i].LocalError == runs[j].LocalError {
+					return runs[i].Start < runs[j].Start
+				}
+				return runs[i].LocalError < runs[j].LocalError
+			}
+			return runs[i].CoveredCount > runs[j].CoveredCount
+		})
+		runs = runs[:opts.MaxWindowCount]
+	}
+	sort.Slice(runs, func(i, j int) bool { return runs[i].Start < runs[j].Start })
+	return runs
+}
+
+func meanProfileError(errors []float64) float64 {
+	var total float64
+	for _, e := range errors {
+		total += e
+	}
+	return total / float64(len(errors))
+}
+
+func normalizeWindowSetOptions(opts WindowSetOptions) WindowSetOptions {
+	if opts.MinWindowSize <= 0 {
+		opts.MinWindowSize = 3
+	}
+	if opts.MaxWindowCount <= 0 {
+		opts.MaxWindowCount = 4
+	}
+	if opts.CoverageWeight == 0 {
+		opts.CoverageWeight = 0.25
+	}
+	return opts
 }
 
 // ScoreAlignedTraceWindows scores a candidate trace against contiguous windows

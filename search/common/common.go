@@ -27,6 +27,9 @@ type ThresholdRetentionPolicy = base.ThresholdRetentionPolicy
 type CoverageRetentionPolicy = base.CoverageRetentionPolicy
 type PartialCoverageOptions = base.PartialCoverageOptions
 type TraceWindowDiagnostics = base.TraceWindowDiagnostics
+type WindowSetOptions = base.WindowSetOptions
+type RealWindowSetScorer = base.RealWindowSetScorer
+type CoverageWindow = base.CoverageWindow
 
 const (
 	RetentionContinue      = base.RetentionContinue

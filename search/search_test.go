@@ -545,3 +545,152 @@ func TestEnumerativeRealSearchFindsExactExpression(t *testing.T) {
 		t.Fatalf("expected best <= worst, got %+v", report.Diagnostics)
 	}
 }
+
+func twoRegionTarget() StaticTarget[float64] {
+	// Candidate x matches the target exactly on samples 0-3 and 8-11; the
+	// middle region diverges far beyond any tolerance.
+	samples := make([]Sample[float64], 0, 12)
+	for i := 0; i < 12; i++ {
+		x := float64(i)
+		target := x
+		if i >= 4 && i <= 7 {
+			target = 1000
+		}
+		samples = append(samples, Sample[float64]{
+			Vars:   map[string]float64{"x": x},
+			Target: target,
+		})
+	}
+	return NewSearchTarget([]string{"x"}, samples)
+}
+
+func TestRealWindowSetScorerRepresentsDisjointRegions(t *testing.T) {
+	candidate := NewCandidate(ast.Variable{Name: "x"})
+	scorer := RealWindowSetScorer{
+		Options: WindowSetOptions{
+			PointTolerance: 1e-9,
+			MinWindowSize:  3,
+			MaxWindowCount: 4,
+			CoverageWeight: 0.25,
+		},
+	}
+
+	got, err := scorer.ScoreCandidate(candidate, eval.Complex128Backend{}, twoRegionTarget())
+	if err != nil {
+		t.Fatalf("ScoreCandidate returned error: %v", err)
+	}
+	if len(got.Windows) != 2 {
+		t.Fatalf("expected two disjoint windows, got %+v", got.Windows)
+	}
+	if got.Windows[0].Start != 0 || got.Windows[0].End != 4 {
+		t.Fatalf("expected first window [0,4), got [%d,%d)", got.Windows[0].Start, got.Windows[0].End)
+	}
+	if got.Windows[1].Start != 8 || got.Windows[1].End != 12 {
+		t.Fatalf("expected second window [8,12), got [%d,%d)", got.Windows[1].Start, got.Windows[1].End)
+	}
+	if got.CoveredCount != 8 {
+		t.Fatalf("expected union covered count 8, got %d", got.CoveredCount)
+	}
+	if got.LocalError > 1e-12 {
+		t.Fatalf("expected near-zero covered error, got %g", got.LocalError)
+	}
+}
+
+func TestSingleWindowScoringUnderReportsDisjointRegions(t *testing.T) {
+	candidate := NewCandidate(ast.Variable{Name: "x"})
+	target := twoRegionTarget()
+
+	single, err := RealPartialCoverageScorer{
+		Options: PartialCoverageOptions{
+			MinWindowSize:  3,
+			CoverageWeight: 0.25,
+		},
+	}.ScoreCandidate(candidate, eval.Complex128Backend{}, target)
+	if err != nil {
+		t.Fatalf("single-window ScoreCandidate returned error: %v", err)
+	}
+
+	set, err := RealWindowSetScorer{
+		Options: WindowSetOptions{
+			PointTolerance: 1e-9,
+			MinWindowSize:  3,
+			MaxWindowCount: 4,
+			CoverageWeight: 0.25,
+		},
+	}.ScoreCandidate(candidate, eval.Complex128Backend{}, target)
+	if err != nil {
+		t.Fatalf("window-set ScoreCandidate returned error: %v", err)
+	}
+
+	// The law genuinely holds on two disjoint 4-sample regions. A single
+	// contiguous window can cover at most one of them within tolerance.
+	if single.CoveredCount >= set.CoveredCount {
+		t.Fatalf(
+			"expected single-window coverage to under-report: single covered %d, window set covered %d",
+			single.CoveredCount, set.CoveredCount,
+		)
+	}
+}
+
+func TestRealWindowSetScorerRespectsWindowCountBound(t *testing.T) {
+	candidate := NewCandidate(ast.Variable{Name: "x"})
+	scorer := RealWindowSetScorer{
+		Options: WindowSetOptions{
+			PointTolerance: 1e-9,
+			MinWindowSize:  3,
+			MaxWindowCount: 1,
+			CoverageWeight: 0.25,
+		},
+	}
+
+	got, err := scorer.ScoreCandidate(candidate, eval.Complex128Backend{}, twoRegionTarget())
+	if err != nil {
+		t.Fatalf("ScoreCandidate returned error: %v", err)
+	}
+	if len(got.Windows) != 1 {
+		t.Fatalf("expected window count capped at 1, got %+v", got.Windows)
+	}
+	if got.CoveredCount != 4 {
+		t.Fatalf("expected covered count 4 under cap, got %d", got.CoveredCount)
+	}
+}
+
+func TestRealWindowSetScorerNoWindowFallsBackToWholeTrace(t *testing.T) {
+	candidate := NewCandidate(ast.One{})
+	scorer := RealWindowSetScorer{
+		Options: WindowSetOptions{
+			PointTolerance: 1e-9,
+			MinWindowSize:  3,
+			MaxWindowCount: 4,
+			CoverageWeight: 0.25,
+		},
+	}
+
+	got, err := scorer.ScoreCandidate(candidate, eval.Complex128Backend{}, twoRegionTarget())
+	if err != nil {
+		t.Fatalf("ScoreCandidate returned error: %v", err)
+	}
+	if len(got.Windows) != 0 || got.CoveredCount != 0 {
+		t.Fatalf("expected no explained windows, got %+v", got)
+	}
+	if !got.Finite {
+		t.Fatal("expected finite fallback score so retention policies decide survival")
+	}
+}
+
+func TestRealErrorProfileMatchesPointwiseError(t *testing.T) {
+	samples := []Sample[float64]{
+		{Vars: map[string]float64{"x": 1}, Target: 1},
+		{Vars: map[string]float64{"x": 2}, Target: 5},
+	}
+	profile, err := RealErrorProfile(NewCandidate(ast.Variable{Name: "x"}), eval.Complex128Backend{}, samples, "x")
+	if err != nil {
+		t.Fatalf("RealErrorProfile returned error: %v", err)
+	}
+	if len(profile) != 2 {
+		t.Fatalf("expected profile length 2, got %d", len(profile))
+	}
+	if profile[0] > 1e-12 || profile[1] < 8.999 || profile[1] > 9.001 {
+		t.Fatalf("unexpected error profile: %v", profile)
+	}
+}

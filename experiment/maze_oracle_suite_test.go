@@ -11,6 +11,7 @@ func TestMazeOracleSuiteSpecsMatchExpectedRecovery(t *testing.T) {
 		filepath.Join(projectRoot, "experiments", "specs", "maze_oracle_exp3_full_from_exp2.json"),
 		filepath.Join(projectRoot, "experiments", "specs", "maze_oracle_exp3_snippet_from_exp1.json"),
 		filepath.Join(projectRoot, "experiments", "specs", "maze_oracle_sinh_partial_coverage.json"),
+		filepath.Join(projectRoot, "experiments", "specs", "maze_oracle_sin_two_windows.json"),
 		filepath.Join(projectRoot, "experiments", "specs", "maze_oracle_sigmoid_negative.json"),
 	}
 

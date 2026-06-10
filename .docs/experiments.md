@@ -204,6 +204,20 @@ explains a declared fraction of the data within a declared error bound, with
 no claim about the remainder of the trace. The window, coverage ratio, and
 local error are recorded per candidate in the result artifact.
 
+Coverage scoring has two declared modes:
+
+- `single_window` — the candidate is scored on its best contiguous window.
+- `window_set` — the candidate is scored on the disjoint set of windows it
+  explains within a declared per-sample tolerance, bounded by a declared
+  minimum window size and maximum window count. Coverage ratio is the union
+  of all windows and local error is the error over covered samples only, so
+  a law holding in two separate regions of the trace is represented as two
+  windows rather than truncated to one. Each window is recorded in the
+  result artifact.
+
+The window-set mode exists because usefulness does not live in one best
+window; see `.docs/partial-recovery-strategy.md`.
+
 ### No Recovery (Maze)
 
 Assign this class when none of the prior criteria are satisfied. As with the

@@ -14,6 +14,8 @@ const (
 	DatasetModeExplicitPoints      = "real_points"
 	SearchModeEnumerativeReal      = "enumerative_real"
 	SearchModeMazeReal             = "maze_real"
+	CoverageModeSingleWindow       = "single_window"
+	CoverageModeWindowSet          = "window_set"
 	RecoveryClassExactNormalized   = "exact_normalized_recovery"
 	RecoveryClassConceptEquivalent = "concept_equivalent_recovery"
 	RecoveryClassApproximateOnly   = "approximate_only_recovery"
@@ -77,13 +79,19 @@ type MazeSpec struct {
 	Coverage        *CoverageSpec `json:"coverage,omitempty"`
 }
 
-// CoverageSpec enables partial-coverage scoring inside maze search. When set,
-// candidates are scored on their best contiguous sample window instead of the
-// full trace, making fractional fits first-class results.
+// CoverageSpec enables partial-coverage scoring inside maze search. The
+// default single_window mode scores each candidate on its best contiguous
+// sample window. The window_set mode scores each candidate on the disjoint
+// set of windows it explains within a declared per-sample tolerance, so laws
+// holding in separate regions of the trace are represented as multiple
+// windows.
 type CoverageSpec struct {
+	Mode           string  `json:"mode,omitempty"`
 	MinWindowSize  int     `json:"min_window_size"`
 	MaxWindowSize  int     `json:"max_window_size,omitempty"`
 	CoverageWeight float64 `json:"coverage_weight,omitempty"`
+	PointTolerance float64 `json:"point_tolerance,omitempty"`
+	MaxWindowCount int     `json:"max_window_count,omitempty"`
 }
 
 // BoundsSpec mirrors the current bounded raw-tree search options.
@@ -250,6 +258,24 @@ func (m MazeSpec) Validate(specID string) error {
 		}
 		if m.Coverage.CoverageWeight < 0 {
 			return fmt.Errorf("experiment spec %q maze coverage coverage_weight cannot be negative", specID)
+		}
+		switch m.Coverage.Mode {
+		case "", CoverageModeSingleWindow:
+			if m.Coverage.PointTolerance != 0 || m.Coverage.MaxWindowCount != 0 {
+				return fmt.Errorf("experiment spec %q single-window coverage must not set point_tolerance or max_window_count", specID)
+			}
+		case CoverageModeWindowSet:
+			if m.Coverage.PointTolerance <= 0 {
+				return fmt.Errorf("experiment spec %q window-set coverage requires positive point_tolerance", specID)
+			}
+			if m.Coverage.MaxWindowCount <= 0 {
+				return fmt.Errorf("experiment spec %q window-set coverage requires positive max_window_count", specID)
+			}
+			if m.Coverage.MaxWindowSize != 0 {
+				return fmt.Errorf("experiment spec %q window-set coverage must not set max_window_size", specID)
+			}
+		default:
+			return fmt.Errorf("experiment spec %q maze coverage mode must be %q or %q", specID, CoverageModeSingleWindow, CoverageModeWindowSet)
 		}
 	}
 	return nil

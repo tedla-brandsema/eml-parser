@@ -109,8 +109,9 @@ func CuratedSnippetTargets() []SnippetTargetSpec {
 				{Name: "exp2", PreorderIndex: 1},
 				{Name: "exp1", PreorderIndex: 2},
 				{Name: "x_leaf", PreorderIndex: 3},
+				{Name: "one_leaf", PreorderIndex: 4},
 			},
-			Notes: "Nested exponential chain with overlapping subtree snippets.",
+			Notes: "Nested exponential chain with overlapping subtree snippets plus atomic leaves.",
 		},
 		{
 			TargetID:   "raw_exp4",
@@ -194,13 +195,41 @@ func WriteSnippetDatasets(opts SnippetDatasetOptions) ([]string, []SnippetDatase
 		if err != nil {
 			return nil, nil, fmt.Errorf("marshal snippet dataset %q: %w", target.TargetID, err)
 		}
-		if err := os.WriteFile(path, append(payload, '\n'), 0o644); err != nil {
+		// Atomic write: snippet artifacts are regenerated on demand by both
+		// the CLI and the experiment harness, so concurrent readers must
+		// never observe a partially written file.
+		if err := writeFileAtomic(path, append(payload, '\n')); err != nil {
 			return nil, nil, fmt.Errorf("write snippet dataset %q: %w", target.TargetID, err)
 		}
 		paths = append(paths, path)
 		artifacts = append(artifacts, artifact)
 	}
 	return paths, artifacts, nil
+}
+
+func writeFileAtomic(path string, payload []byte) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	if _, err := tmp.Write(payload); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		_ = os.Remove(tmp.Name())
+		return err
+	}
+	return nil
 }
 
 func GenerateSnippetDataset(target SnippetTargetSpec, registry *concepts.Registry, domains []SamplingDomain) (SnippetDatasetArtifact, error) {

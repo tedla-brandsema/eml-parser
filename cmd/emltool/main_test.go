@@ -439,33 +439,11 @@ func TestRunGenSnippetDatasets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("os.Getwd failed: %v", err)
 	}
-	projectRoot := filepath.Dir(filepath.Dir(wd))
+	// Run in an isolated temp root: the real artifacts/snippets directory is
+	// read concurrently by the experiment package's maze oracle suite test,
+	// so this test must never delete or rewrite it.
+	projectRoot := t.TempDir()
 	outDir := filepath.Join(projectRoot, "artifacts", "snippets")
-
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll failed: %v", err)
-	}
-	entries, err := os.ReadDir(outDir)
-	if err != nil {
-		t.Fatalf("ReadDir failed: %v", err)
-	}
-	for _, entry := range entries {
-		if entry.Name() == ".gitkeep" {
-			continue
-		}
-		if err := os.Remove(filepath.Join(outDir, entry.Name())); err != nil {
-			t.Fatalf("Remove failed: %v", err)
-		}
-	}
-	t.Cleanup(func() {
-		entries, _ := os.ReadDir(outDir)
-		for _, entry := range entries {
-			if entry.Name() == ".gitkeep" {
-				continue
-			}
-			_ = os.Remove(filepath.Join(outDir, entry.Name()))
-		}
-	})
 
 	stdout := os.Stdout
 	r, w, err := os.Pipe()

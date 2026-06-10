@@ -196,6 +196,9 @@ func run(args []string) error {
 			if candidate.CoveredCount > 0 {
 				fmt.Printf("%d. score=%s coverage=%.3f local_error=%s anchor=%s expr=%s\n",
 					candidate.Rank, candidate.Score, candidate.CoverageRatio, candidate.LocalError, candidate.AnchorName, candidate.NormalizedExpr)
+				for _, window := range candidate.Windows {
+					fmt.Printf("   window [%d,%d) covered=%d local_error=%s\n", window.Start, window.End, window.CoveredCount, window.LocalError)
+				}
 				continue
 			}
 			fmt.Printf("%d. score=%s expr=%s\n", candidate.Rank, candidate.Score, candidate.NormalizedExpr)
