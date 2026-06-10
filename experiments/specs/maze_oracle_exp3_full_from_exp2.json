@@ -1,0 +1,35 @@
+{
+  "id": "maze_oracle_exp3_full_from_exp2",
+  "description": "Positive control: anchored maze search seeded from the labeled exp2 snippet should grow the anchor into the full exp(exp(exp(x))) law.",
+  "target": {
+    "kind": "raw",
+    "raw_eml": "eml(eml(eml(x, 1), 1), 1)"
+  },
+  "dataset": {
+    "mode": "real_grid",
+    "variable": "x",
+    "grid": {
+      "start": 0.05,
+      "stop": 0.35,
+      "count": 16
+    }
+  },
+  "search": {
+    "mode": "maze_real",
+    "bounds": {
+      "max_depth": 5,
+      "max_nodes": 9
+    },
+    "top_n": 5,
+    "maze": {
+      "snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+      "snippet_ids": ["raw_exp3_exp2"],
+      "accept_threshold": 10.0,
+      "retain_threshold": 10.0
+    }
+  },
+  "recovery": {
+    "expected_class": "full_law_recovery",
+    "expected_canonical_key": "eml(eml(eml(x, 1), 1), 1)"
+  }
+}

@@ -199,3 +199,147 @@ func TestParseSpecRejectsApproximateOnlyWithoutThreshold(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestParseSpecMazeRealMode(t *testing.T) {
+	spec, err := ParseSpec([]byte(`{
+		"id": "maze_smoke",
+		"description": "Maze mode parses with snippet anchors and coverage",
+		"target": {
+			"kind": "raw",
+			"raw_eml": "eml(eml(x, 1), 1)"
+		},
+		"dataset": {
+			"mode": "real_grid",
+			"variable": "x",
+			"grid": {
+				"start": 0.05,
+				"stop": 0.35,
+				"count": 8
+			}
+		},
+		"search": {
+			"mode": "maze_real",
+			"bounds": {
+				"max_depth": 3,
+				"max_nodes": 5
+			},
+			"top_n": 5,
+			"maze": {
+				"snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+				"snippet_ids": ["raw_exp3_exp1"],
+				"accept_threshold": 1.0,
+				"retain_threshold": 2.0,
+				"coverage": {
+					"min_window_size": 4,
+					"coverage_weight": 0.25
+				}
+			}
+		},
+		"recovery": {
+			"expected_class": "partial_coverage_recovery",
+			"min_coverage_ratio": 0.5,
+			"max_local_error": 0.01
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("ParseSpec returned error: %v", err)
+	}
+	if spec.Search.Mode != SearchModeMazeReal || spec.Search.Maze == nil {
+		t.Fatalf("unexpected search: %+v", spec.Search)
+	}
+	if spec.Search.Maze.Coverage == nil || spec.Search.Maze.Coverage.MinWindowSize != 4 {
+		t.Fatalf("unexpected coverage: %+v", spec.Search.Maze.Coverage)
+	}
+	if spec.Recovery.ExpectedClass != RecoveryClassPartialCoverage {
+		t.Fatalf("unexpected recovery: %+v", spec.Recovery)
+	}
+}
+
+func TestParseSpecMazeModeRequiresMazeBlock(t *testing.T) {
+	_, err := ParseSpec([]byte(`{
+		"id": "maze_missing_block",
+		"description": "Maze mode without maze block must fail",
+		"target": {"kind": "raw", "raw_eml": "x"},
+		"dataset": {"mode": "real_points", "variable": "x", "points": [0.1, 0.2]},
+		"search": {
+			"mode": "maze_real",
+			"bounds": {"max_depth": 2, "max_nodes": 3},
+			"top_n": 3
+		},
+		"recovery": {"expected_class": "no_recovery"}
+	}`))
+	if err == nil || !strings.Contains(err.Error(), "requires maze block") {
+		t.Fatalf("expected maze block error, got %v", err)
+	}
+}
+
+func TestParseSpecEnumerativeModeRejectsMazeBlock(t *testing.T) {
+	_, err := ParseSpec([]byte(`{
+		"id": "enumerative_with_maze",
+		"description": "Enumerative mode with maze block must fail",
+		"target": {"kind": "raw", "raw_eml": "x"},
+		"dataset": {"mode": "real_points", "variable": "x", "points": [0.1, 0.2]},
+		"search": {
+			"mode": "enumerative_real",
+			"bounds": {"max_depth": 2, "max_nodes": 3},
+			"top_n": 3,
+			"maze": {
+				"snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+				"accept_threshold": 1.0,
+				"retain_threshold": 2.0
+			}
+		},
+		"recovery": {"expected_class": "no_recovery"}
+	}`))
+	if err == nil || !strings.Contains(err.Error(), "must not set maze") {
+		t.Fatalf("expected maze rejection error, got %v", err)
+	}
+}
+
+func TestParseSpecMazeRecoveryClassRequiresMazeMode(t *testing.T) {
+	_, err := ParseSpec([]byte(`{
+		"id": "snippet_class_wrong_mode",
+		"description": "Snippet recovery class with enumerative mode must fail",
+		"target": {"kind": "raw", "raw_eml": "x"},
+		"dataset": {"mode": "real_points", "variable": "x", "points": [0.1, 0.2]},
+		"search": {
+			"mode": "enumerative_real",
+			"bounds": {"max_depth": 2, "max_nodes": 3},
+			"top_n": 3
+		},
+		"recovery": {
+			"expected_class": "snippet_recovery",
+			"expected_snippet_keys": ["eml(x, 1)"]
+		}
+	}`))
+	if err == nil || !strings.Contains(err.Error(), "requires search mode") {
+		t.Fatalf("expected search mode error, got %v", err)
+	}
+}
+
+func TestParseSpecPartialCoverageRequiresCoverageScoring(t *testing.T) {
+	_, err := ParseSpec([]byte(`{
+		"id": "partial_coverage_no_scoring",
+		"description": "Partial coverage class without coverage scoring must fail",
+		"target": {"kind": "raw", "raw_eml": "x"},
+		"dataset": {"mode": "real_points", "variable": "x", "points": [0.1, 0.2]},
+		"search": {
+			"mode": "maze_real",
+			"bounds": {"max_depth": 2, "max_nodes": 3},
+			"top_n": 3,
+			"maze": {
+				"snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+				"accept_threshold": 1.0,
+				"retain_threshold": 2.0
+			}
+		},
+		"recovery": {
+			"expected_class": "partial_coverage_recovery",
+			"min_coverage_ratio": 0.5,
+			"max_local_error": 0.01
+		}
+	}`))
+	if err == nil || !strings.Contains(err.Error(), "requires maze coverage scoring") {
+		t.Fatalf("expected coverage scoring error, got %v", err)
+	}
+}

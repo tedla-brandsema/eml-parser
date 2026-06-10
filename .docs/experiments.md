@@ -141,6 +141,96 @@ Recovery classification must be applied in this order:
 
 This ordering prevents numeric closeness from masking a structural result.
 
+## Partial Recovery Outcome Classes
+
+Maze-mode experiments (`search.mode = "maze_real"`) study fractional recovery:
+which labeled pieces of a target law survive search, even when the whole law
+is out of reach. They use a separate, mutually exclusive class set:
+
+- `full_law_recovery`
+- `snippet_recovery`
+- `partial_coverage_recovery`
+- `no_recovery`
+
+The whole-formula classes and the partial classes never mix: an experiment
+declares one search mode and is classified only against that mode's class set.
+
+### Anchors Are Declared Inputs
+
+Every maze experiment seeds its search from snippets in a committed snippet
+artifact. Anchors are therefore part of the experiment's declared conditions,
+with full snippet provenance recorded in the result artifact. A partial
+recovery claim is always conditional: "given these declared anchors, search
+recovered this structure." Maze experiments do not claim unanchored discovery.
+
+### Full Law Recovery
+
+Assign this class when:
+
+- the top-ranked maze candidate has the exact expected normalized canonical
+  key declared by the experiment.
+
+This is the maze analogue of exact normalized recovery, and the only maze
+class that supports whole-law claims.
+
+### Snippet Recovery
+
+Assign this class when:
+
+- full law recovery is not satisfied,
+- but a declared expected snippet canonical key appears among the returned
+  top-N candidates.
+
+Snippet recovery deliberately checks the whole returned top-N rather than only
+the top rank. Fractional recovery asks which labeled subtrees survive search,
+not only which candidate ranks first; N is declared in the spec and all N
+candidates are committed in the result artifact, so the criterion stays
+auditable.
+
+### Partial Coverage Recovery
+
+Assign this class when:
+
+- no structural criterion is satisfied,
+- coverage-aware scoring is enabled in the spec,
+- and the top-ranked candidate's best window meets both declared thresholds:
+  coverage ratio at or above `min_coverage_ratio` and local error at or below
+  `max_local_error`.
+
+This is the partial analogue of approximate-only recovery: a candidate that
+explains a declared fraction of the data within a declared error bound, with
+no claim about the remainder of the trace. The window, coverage ratio, and
+local error are recorded per candidate in the result artifact.
+
+### No Recovery (Maze)
+
+Assign this class when none of the prior criteria are satisfied. As with the
+whole-formula classes, this includes honest near misses.
+
+### Partial Classification Order
+
+1. full law recovery (top candidate only)
+2. snippet recovery (declared keys against returned top-N)
+3. partial coverage recovery (top candidate's window against declared thresholds)
+4. no recovery
+
+Structural recovery always outranks coverage-based recovery, mirroring the
+whole-formula rule that numeric closeness never masks a structural result.
+
+### Claims Partial Recovery Can Support
+
+- "Under declared anchors and bounds, search recovered the full target law."
+- "Under bounds too tight for the full law, search recovered a declared
+  labeled snippet of the target."
+- "A candidate explains a declared fraction of the trace within a declared
+  error bound."
+
+### Claims Partial Recovery Cannot Support
+
+- Any claim of unanchored or open-ended discovery.
+- Any claim that a covering window generalizes beyond its declared region.
+- Any claim that snippet recovery implies the full law is reachable.
+
 ## Required Metadata Per Experiment Run
 
 Every experiment run must record enough metadata to be reproducible and

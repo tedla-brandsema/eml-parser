@@ -1,0 +1,39 @@
+{
+  "id": "maze_oracle_exp3_snippet_from_exp1",
+  "description": "Positive control: under bounds too tight to reach the full exp(exp(exp(x))) law, anchored maze search from the exp1 snippet should still recover the labeled exp2 snippet of the target.",
+  "target": {
+    "kind": "raw",
+    "raw_eml": "eml(eml(eml(x, 1), 1), 1)"
+  },
+  "dataset": {
+    "mode": "real_grid",
+    "variable": "x",
+    "grid": {
+      "start": 0.05,
+      "stop": 0.35,
+      "count": 16
+    }
+  },
+  "search": {
+    "mode": "maze_real",
+    "bounds": {
+      "max_depth": 3,
+      "max_nodes": 5
+    },
+    "top_n": 5,
+    "maze": {
+      "snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+      "snippet_ids": [
+        "raw_exp3_exp1"
+      ],
+      "accept_threshold": 2000.0,
+      "retain_threshold": 2000.0
+    }
+  },
+  "recovery": {
+    "expected_class": "snippet_recovery",
+    "expected_snippet_keys": [
+      "eml(eml(x, 1), 1)"
+    ]
+  }
+}

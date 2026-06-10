@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"eml-parser/eval"
+	"eml-parser/family"
 	"eml-parser/search"
+	"eml-parser/search/maze"
 )
 
 // SearchResultArtifact is the machine-readable output of one oracle experiment
@@ -30,6 +32,11 @@ type SearchResultArtifact struct {
 	RecoveryStatus     string              `json:"recovery_status"`
 	CodeVersion        CodeVersion         `json:"code_version"`
 	GeneratedAtUTC     string              `json:"generated_at_utc"`
+
+	// Maze-mode extensions. All empty for enumerative runs.
+	Anchors         []AnchorArtifact         `json:"anchors,omitempty"`
+	MazeDiagnostics *MazeDiagnosticsArtifact `json:"maze_diagnostics,omitempty"`
+	PartialResults  []PartialResultArtifact  `json:"partial_results,omitempty"`
 }
 
 // SearchExecution captures the concrete search configuration used for a run.
@@ -37,6 +44,42 @@ type SearchExecution struct {
 	Mode   string     `json:"mode"`
 	Bounds BoundsSpec `json:"bounds"`
 	TopN   int        `json:"top_n"`
+	Maze   *MazeSpec  `json:"maze,omitempty"`
+}
+
+// AnchorArtifact records one declared maze anchor and its snippet provenance.
+type AnchorArtifact struct {
+	Name       string                 `json:"name"`
+	Expression string                 `json:"expression"`
+	Provenance *maze.AnchorProvenance `json:"provenance,omitempty"`
+}
+
+// MazeDiagnosticsArtifact is the JSON-safe diagnostic view of one maze run.
+type MazeDiagnosticsArtifact struct {
+	AnchorCount                int    `json:"anchor_count"`
+	ThreadsSpawned             int    `json:"threads_spawned"`
+	BranchesExpanded           int    `json:"branches_expanded"`
+	BranchesPruned             int    `json:"branches_pruned"`
+	BranchesRetained           int    `json:"branches_retained"`
+	BranchesCompleted          int    `json:"branches_completed"`
+	DuplicateEliminations      int    `json:"duplicate_eliminations"`
+	FrontierExpansionsTried    int    `json:"frontier_expansions_tried"`
+	FrontierExpansionsAccepted int    `json:"frontier_expansions_accepted"`
+	FrontierExpansionsRejected int    `json:"frontier_expansions_rejected"`
+	MaxDepthReached            int    `json:"max_depth_reached"`
+	MaxFrontierCountSeen       int    `json:"max_frontier_count_seen"`
+	BestScore                  string `json:"best_score"`
+}
+
+// PartialResultArtifact records one retained partial maze result.
+type PartialResultArtifact struct {
+	AnchorName     string  `json:"anchor_name"`
+	CanonicalKey   string  `json:"canonical_key"`
+	NormalizedExpr string  `json:"normalized_expr"`
+	Score          string  `json:"score"`
+	Reason         string  `json:"reason"`
+	CoverageRatio  float64 `json:"coverage_ratio,omitempty"`
+	CoveredCount   int     `json:"covered_count,omitempty"`
 }
 
 // DatasetMetadata is the dataset-side provenance retained in a search result.
@@ -68,12 +111,19 @@ type DiagnosticsArtifact struct {
 	TopCandidateSummaries []string `json:"top_candidate_summaries"`
 }
 
-// CandidateResult records one ranked candidate from a harness run.
+// CandidateResult records one ranked candidate from a harness run. The
+// coverage and anchor fields are populated only by maze-mode runs.
 type CandidateResult struct {
-	Rank           int    `json:"rank"`
-	Score          string `json:"score"`
-	CanonicalKey   string `json:"canonical_key"`
-	NormalizedExpr string `json:"normalized_expr"`
+	Rank           int     `json:"rank"`
+	Score          string  `json:"score"`
+	CanonicalKey   string  `json:"canonical_key"`
+	NormalizedExpr string  `json:"normalized_expr"`
+	AnchorName     string  `json:"anchor_name,omitempty"`
+	CoverageRatio  float64 `json:"coverage_ratio,omitempty"`
+	CoveredCount   int     `json:"covered_count,omitempty"`
+	WindowStart    int     `json:"window_start,omitempty"`
+	WindowEnd      int     `json:"window_end,omitempty"`
+	LocalError     string  `json:"local_error,omitempty"`
 }
 
 // LoadDataset reads a previously generated dataset artifact from disk.
@@ -102,11 +152,6 @@ func RunSpecPath(projectRoot, specPath string) (string, SearchResultArtifact, er
 		return "", SearchResultArtifact{}, err
 	}
 
-	report, err := runSearchFromDataset(spec, dataset)
-	if err != nil {
-		return "", SearchResultArtifact{}, err
-	}
-
 	artifact := SearchResultArtifact{
 		ExperimentID:       spec.ID,
 		Description:        spec.Description,
@@ -124,12 +169,31 @@ func RunSpecPath(projectRoot, specPath string) (string, SearchResultArtifact, er
 			Mode:   spec.Search.Mode,
 			Bounds: spec.Search.Bounds,
 			TopN:   spec.Search.TopN,
+			Maze:   spec.Search.Maze,
 		},
-		Diagnostics:    diagnosticsArtifact(report.Diagnostics),
-		Candidates:     candidateResults(report.Results),
-		RecoveryStatus: ClassifyRecovery(spec, report),
 		CodeVersion:    detectCodeVersion(projectRoot),
 		GeneratedAtUTC: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	switch spec.Search.Mode {
+	case SearchModeMazeReal:
+		report, anchors, err := runMazeFromDataset(projectRoot, spec, dataset)
+		if err != nil {
+			return "", SearchResultArtifact{}, err
+		}
+		artifact.Anchors = anchorArtifacts(anchors)
+		artifact.MazeDiagnostics = mazeDiagnosticsArtifact(report.Diagnostics)
+		artifact.PartialResults = partialResultArtifacts(report.PartialResults)
+		artifact.Candidates = mazeCandidateResults(report.BestCandidates)
+		artifact.RecoveryStatus = ClassifyMazeRecovery(spec, report)
+	default:
+		report, err := runSearchFromDataset(spec, dataset)
+		if err != nil {
+			return "", SearchResultArtifact{}, err
+		}
+		artifact.Diagnostics = diagnosticsArtifact(report.Diagnostics)
+		artifact.Candidates = candidateResults(report.Results)
+		artifact.RecoveryStatus = ClassifyRecovery(spec, report)
 	}
 
 	outputPath := filepath.Join(projectRoot, "experiments", "results", spec.ID+".json")
@@ -137,6 +201,65 @@ func RunSpecPath(projectRoot, specPath string) (string, SearchResultArtifact, er
 		return "", SearchResultArtifact{}, err
 	}
 	return outputPath, artifact, nil
+}
+
+// runMazeFromDataset executes one maze_real experiment over a generated
+// dataset, seeding anchors from the spec's committed snippet artifact.
+func runMazeFromDataset(projectRoot string, spec Spec, dataset DatasetArtifact) (maze.MazeReport, []maze.Anchor, error) {
+	snippetArtifact, err := ensureSnippetArtifact(projectRoot, spec.Search.Maze.SnippetArtifact)
+	if err != nil {
+		return maze.MazeReport{}, nil, err
+	}
+	anchors, err := maze.AnchorsFromSnippetArtifact(snippetArtifact, spec.Search.Maze.SnippetIDs...)
+	if err != nil {
+		return maze.MazeReport{}, nil, err
+	}
+
+	fixture := search.BenchmarkCase[float64]{
+		Name:      spec.ID,
+		Expr:      nil,
+		Samples:   datasetSamplesToSearch(dataset),
+		TargetKey: dataset.Variable,
+	}
+	options := maze.MazeOptions{
+		Bounds: search.Bounds{
+			MaxDepth: spec.Search.Bounds.MaxDepth,
+			MaxNodes: spec.Search.Bounds.MaxNodes,
+		},
+		TopN:            spec.Search.TopN,
+		AcceptThreshold: spec.Search.Maze.AcceptThreshold,
+		RetainThreshold: spec.Search.Maze.RetainThreshold,
+		MinImprovement:  spec.Search.Maze.MinImprovement,
+	}
+
+	var report maze.MazeReport
+	if coverage := spec.Search.Maze.Coverage; coverage != nil {
+		report, err = maze.MazeRealSearchPartialCoverage(fixture, eval.Complex128Backend{}, anchors, options, maze.CoverageOptions{
+			MinWindowSize:  coverage.MinWindowSize,
+			MaxWindowSize:  coverage.MaxWindowSize,
+			CoverageWeight: coverage.CoverageWeight,
+		})
+	} else {
+		report, err = maze.MazeRealSearch(fixture, eval.Complex128Backend{}, anchors, options)
+	}
+	if err != nil {
+		return maze.MazeReport{}, nil, err
+	}
+	return report, anchors, nil
+}
+
+// ensureSnippetArtifact loads the referenced snippet artifact, regenerating
+// the curated snippet corpus once if the artifact is missing on disk.
+func ensureSnippetArtifact(projectRoot, relativePath string) (family.SnippetDatasetArtifact, error) {
+	path := filepath.Join(projectRoot, relativePath)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if _, _, genErr := family.WriteCuratedSnippetDatasets(projectRoot); genErr != nil {
+			return family.SnippetDatasetArtifact{}, fmt.Errorf("regenerate curated snippet datasets: %w", genErr)
+		}
+	} else if err != nil {
+		return family.SnippetDatasetArtifact{}, fmt.Errorf("stat snippet artifact: %w", err)
+	}
+	return maze.LoadSnippetArtifact(path)
 }
 
 func ensureDataset(projectRoot, datasetPath string, spec Spec) (DatasetArtifact, error) {
@@ -176,6 +299,71 @@ func datasetSamplesToSearch(dataset DatasetArtifact) []search.Sample[float64] {
 				dataset.Variable: sample.Input,
 			},
 			Target: sample.Target,
+		})
+	}
+	return out
+}
+
+func anchorArtifacts(anchors []maze.Anchor) []AnchorArtifact {
+	out := make([]AnchorArtifact, 0, len(anchors))
+	for _, anchor := range anchors {
+		out = append(out, AnchorArtifact{
+			Name:       anchor.Name,
+			Expression: anchor.Expr.String(),
+			Provenance: anchor.Provenance,
+		})
+	}
+	return out
+}
+
+func mazeDiagnosticsArtifact(d maze.MazeDiagnostics) *MazeDiagnosticsArtifact {
+	return &MazeDiagnosticsArtifact{
+		AnchorCount:                d.AnchorCount,
+		ThreadsSpawned:             d.ThreadsSpawned,
+		BranchesExpanded:           d.BranchesExpanded,
+		BranchesPruned:             d.BranchesPruned,
+		BranchesRetained:           d.BranchesRetained,
+		BranchesCompleted:          d.BranchesCompleted,
+		DuplicateEliminations:      d.DuplicateEliminations,
+		FrontierExpansionsTried:    d.FrontierExpansionsTried,
+		FrontierExpansionsAccepted: d.FrontierExpansionsAccepted,
+		FrontierExpansionsRejected: d.FrontierExpansionsRejected,
+		MaxDepthReached:            d.MaxDepthReached,
+		MaxFrontierCountSeen:       d.MaxFrontierCountSeen,
+		BestScore:                  formatScore(d.BestScore),
+	}
+}
+
+func mazeCandidateResults(candidates []maze.CandidateScore) []CandidateResult {
+	out := make([]CandidateResult, 0, len(candidates))
+	for i, candidate := range candidates {
+		out = append(out, CandidateResult{
+			Rank:           i + 1,
+			Score:          formatScore(candidate.Score),
+			CanonicalKey:   candidate.Candidate.Key,
+			NormalizedExpr: candidate.Candidate.Normalized.String(),
+			AnchorName:     candidate.AnchorName,
+			CoverageRatio:  candidate.ScoreDetails.CoverageRatio,
+			CoveredCount:   candidate.ScoreDetails.CoveredCount,
+			WindowStart:    candidate.ScoreDetails.WindowStart,
+			WindowEnd:      candidate.ScoreDetails.WindowEnd,
+			LocalError:     formatScore(candidate.ScoreDetails.LocalError),
+		})
+	}
+	return out
+}
+
+func partialResultArtifacts(partials []maze.PartialResult) []PartialResultArtifact {
+	out := make([]PartialResultArtifact, 0, len(partials))
+	for _, partial := range partials {
+		out = append(out, PartialResultArtifact{
+			AnchorName:     partial.AnchorName,
+			CanonicalKey:   partial.Candidate.Key,
+			NormalizedExpr: partial.Candidate.Normalized.String(),
+			Score:          formatScore(partial.Score),
+			Reason:         partial.Reason,
+			CoverageRatio:  partial.ScoreDetails.CoverageRatio,
+			CoveredCount:   partial.ScoreDetails.CoveredCount,
 		})
 	}
 	return out
@@ -237,6 +425,25 @@ func (d DiagnosticsArtifact) String() string {
 		d.BestScore,
 		d.WorstScore,
 		d.MeanScore,
+	)
+}
+
+func (d MazeDiagnosticsArtifact) String() string {
+	return fmt.Sprintf(
+		"anchors: %d\nthreads_spawned: %d\nbranches_expanded: %d\nbranches_pruned: %d\nbranches_retained: %d\nbranches_completed: %d\nduplicate_eliminations: %d\nfrontier_expansions_tried: %d\nfrontier_expansions_accepted: %d\nfrontier_expansions_rejected: %d\nmax_depth_reached: %d\nmax_frontier_count_seen: %d\nbest_score: %s",
+		d.AnchorCount,
+		d.ThreadsSpawned,
+		d.BranchesExpanded,
+		d.BranchesPruned,
+		d.BranchesRetained,
+		d.BranchesCompleted,
+		d.DuplicateEliminations,
+		d.FrontierExpansionsTried,
+		d.FrontierExpansionsAccepted,
+		d.FrontierExpansionsRejected,
+		d.MaxDepthReached,
+		d.MaxFrontierCountSeen,
+		d.BestScore,
 	)
 }
 

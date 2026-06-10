@@ -813,6 +813,10 @@ Reason:
 
 ### 39. Partial-Fit Evaluation Methodology
 
+Status: partially implemented — full-law / snippet / partial-coverage recovery
+classes and their claim discipline are defined in `.docs/experiments.md`;
+equivalence-family recovery and assembly-oriented criteria remain open.
+
 Extend the experiment methodology beyond top-1 whole-formula recovery.
 
 Targets:
@@ -831,6 +835,10 @@ Reason:
 - the project now values partial laws as first-class outputs rather than mere failures
 
 ### 40. Partial-Fit Experiment Harness
+
+Status: partially implemented — `maze_real` experiment specs run snippet-anchored
+maze search (optionally coverage-scored) through the existing harness, with a
+committed maze oracle suite; paired/grouped equivalence-family specs remain open.
 
 Build a harness around snippet-level and equivalence-family experiments.
 

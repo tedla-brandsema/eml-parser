@@ -1,0 +1,40 @@
+{
+  "id": "maze_oracle_sigmoid_negative",
+  "description": "Negative control: anchored maze search from exponential snippets should fail honestly against sigmoid under strict partial-coverage criteria, confirming that coverage-aware classification does not inflate weak fits.",
+  "target": {
+    "kind": "concept",
+    "concept": "sigmoid"
+  },
+  "dataset": {
+    "mode": "real_grid",
+    "variable": "x",
+    "grid": {
+      "start": 1.0,
+      "stop": 3.0,
+      "count": 11
+    }
+  },
+  "search": {
+    "mode": "maze_real",
+    "bounds": {
+      "max_depth": 2,
+      "max_nodes": 3
+    },
+    "top_n": 5,
+    "maze": {
+      "snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+      "snippet_ids": ["raw_exp3_exp1"],
+      "accept_threshold": 1.0,
+      "retain_threshold": 2.0,
+      "coverage": {
+        "min_window_size": 4,
+        "coverage_weight": 0.25
+      }
+    }
+  },
+  "recovery": {
+    "expected_class": "no_recovery",
+    "min_coverage_ratio": 0.5,
+    "max_local_error": 0.000001
+  }
+}

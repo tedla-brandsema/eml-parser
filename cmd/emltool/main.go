@@ -180,10 +180,24 @@ func run(args []string) error {
 		fmt.Printf("dataset: %s\n", artifact.DatasetPath)
 		fmt.Printf("result: %s\n", resultPath)
 		fmt.Printf("recovery_status: %s\n", artifact.RecoveryStatus)
-		fmt.Println("diagnostics:")
-		fmt.Println(artifact.Diagnostics.String())
+		if artifact.MazeDiagnostics != nil {
+			fmt.Println("anchors:")
+			for _, anchor := range artifact.Anchors {
+				fmt.Printf("- %s expr=%s\n", anchor.Name, anchor.Expression)
+			}
+			fmt.Println("maze_diagnostics:")
+			fmt.Println(artifact.MazeDiagnostics.String())
+		} else {
+			fmt.Println("diagnostics:")
+			fmt.Println(artifact.Diagnostics.String())
+		}
 		fmt.Println("top_candidates:")
 		for _, candidate := range artifact.Candidates {
+			if candidate.CoveredCount > 0 {
+				fmt.Printf("%d. score=%s coverage=%.3f local_error=%s anchor=%s expr=%s\n",
+					candidate.Rank, candidate.Score, candidate.CoverageRatio, candidate.LocalError, candidate.AnchorName, candidate.NormalizedExpr)
+				continue
+			}
 			fmt.Printf("%d. score=%s expr=%s\n", candidate.Rank, candidate.Score, candidate.NormalizedExpr)
 		}
 		return nil

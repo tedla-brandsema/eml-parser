@@ -1,0 +1,40 @@
+{
+  "id": "maze_oracle_sinh_partial_coverage",
+  "description": "Stretch control: with coverage-aware scoring, anchored maze search from the generic x snippet should recover x as a partial law covering the small-x region of sinh(x), without claiming whole-law recovery.",
+  "target": {
+    "kind": "concept",
+    "concept": "sinh"
+  },
+  "dataset": {
+    "mode": "real_grid",
+    "variable": "x",
+    "grid": {
+      "start": 0.2,
+      "stop": 2.6,
+      "count": 13
+    }
+  },
+  "search": {
+    "mode": "maze_real",
+    "bounds": {
+      "max_depth": 2,
+      "max_nodes": 3
+    },
+    "top_n": 5,
+    "maze": {
+      "snippet_artifact": "artifacts/snippets/raw_exp3.snippet.json",
+      "snippet_ids": ["raw_exp3_x_leaf"],
+      "accept_threshold": 1.0,
+      "retain_threshold": 2.0,
+      "coverage": {
+        "min_window_size": 4,
+        "coverage_weight": 0.25
+      }
+    }
+  },
+  "recovery": {
+    "expected_class": "partial_coverage_recovery",
+    "min_coverage_ratio": 0.25,
+    "max_local_error": 0.05
+  }
+}
